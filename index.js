@@ -16,12 +16,12 @@ import { logger } from './system/logger.js'
 import { initLoader } from './system/loader.js'
 import { routeMessage, routeEvent } from './system/router.js'
 import { box } from './system/box.js'
-import { fonts } from './system/fonts.js' // FIX 1: fonts ilikosa
+import { fonts } from './system/fonts.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-// FIX 2: Prevent multiple instances + memory leaks
+// FIX: Prevent multiple instances + memory leaks
 process.setMaxListeners(20)
 let globalSock = null
 let isStarting = false
@@ -39,24 +39,21 @@ const CREDS_PATH = join(SESSION_DIR, 'creds.json')
 function loadSessionFromEnv() {
   const sessionId = process.env.SESSION_ID
 
-  if (!sessionId ||!sessionId.startsWith('SWIFTBOT~')) {
+  if (!sessionId || !sessionId.startsWith('SWIFTBOT~')) {
     logger.error('SESSION', 'No SESSION_ID found in env')
     logger.info('SESSION', 'Run: node pair.js to generate one')
     return false
   }
 
   try {
-    // Ensure sessions folder exists
     if (!fs.existsSync(SESSION_DIR)) {
       fs.mkdirSync(SESSION_DIR, { recursive: true })
     }
 
-    // Decode base64
     const base64Data = sessionId.replace('SWIFTBOT~', '')
     const decoded = Buffer.from(base64Data, 'base64').toString('utf-8')
     const creds = JSON.parse(decoded)
 
-    // Write creds.json
     fs.writeFileSync(CREDS_PATH, JSON.stringify(creds, null, 2))
     logger.success('SESSION', 'Session loaded from SESSION_ID env')
     return true
@@ -103,6 +100,7 @@ async function sendConnectedMsg(sock) {
       `Bot: ${fonts.bold(botname)}\n` +
       `Prefix: ${fonts.mono(prefix)}\n` +
       `Mode: ${fonts.sans(await db.get('mode'))}\n` +
+      `Owner: ${fonts.bold(owner)}\n` + // FIX: Show owner
       `DB: ${fonts.smallCaps(db.mode)}\n\n` +
       `Type ${fonts.bold(prefix + 'menu')} to start`,
       'SwiftBot v2.0'
@@ -122,7 +120,7 @@ async function sendConnectedMsg(sock) {
         renderLargerThumbnail: false,
         verifiedBizName: 'WhatsApp'
       },
-      forwardedNewsletterMessageInfo: channelJid? {
+      forwardedNewsletterMessageInfo: channelJid ? {
         newsletterJid: channelJid,
         newsletterName: channelName || 'SwiftBot Updates',
         serverMessageId: Math.floor(Math.random() * 100000)
@@ -145,13 +143,13 @@ async function sendConnectedMsg(sock) {
 // RAM CLEANUP — Prevent memory leak
 // ─────────────────────────────────────────────
 function startRamCleanup() {
-  if (cleanupInterval) clearInterval(cleanupInterval) // FIX 3: Clear old interval
-  
+  if (cleanupInterval) clearInterval(cleanupInterval)
+
   cleanupInterval = setInterval(() => {
     const mem = process.memoryUsage()
     const used = mem.heapUsed / 1024 / 1024
 
-    if (used > 450) { // 450MB threshold
+    if (used > 450) {
       logger.warn('RAM', `High memory: ${used.toFixed(2)}MB — Forcing GC`)
       if (global.gc) {
         global.gc()
@@ -160,29 +158,26 @@ function startRamCleanup() {
     }
 
     logger.ramStats()
-  }, 60000) // Every 1 minute
+  }, 60000)
 }
 
 // ─────────────────────────────────────────────
 // START BOT
 // ─────────────────────────────────────────────
 async function startBot() {
-  if (isStarting) return // FIX 4: Prevent double start
+  if (isStarting) return
   isStarting = true
-  
+
   logger.bot('STARTUP', 'Starting SwiftBot...')
 
-  // FIX 5: Kill old socket before starting new one
   if (globalSock) {
     try { await globalSock.end() } catch {}
     globalSock = null
-    await new Promise(r => setTimeout(r, 2000)) // Wait 2s for WhatsApp to release
+    await new Promise(r => setTimeout(r, 2000))
   }
 
-  // 1. Init Database
   await initDb()
 
-  // 2. Load Session from ENV
   if (!fs.existsSync(CREDS_PATH)) {
     if (!loadSessionFromEnv()) {
       logger.error('STARTUP', 'No session found. Exiting.')
@@ -190,20 +185,14 @@ async function startBot() {
     }
   }
 
-  // 3. Load Bot Image
   await loadBotImage()
-
-  // 4. Init Plugin Loader
   const pluginStats = await initLoader()
 
-  // 5. Get Baileys Version
   const { version } = await fetchLatestBaileysVersion()
   logger.info('BAILEYS', `Using WA v${version.join('.')}`)
 
-  // 6. Load Auth State
   const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
 
-  // 7. Create Socket
   const sock = makeWASocket({
     version,
     auth: state,
@@ -212,18 +201,15 @@ async function startBot() {
     browser: Browsers.ubuntu('Chrome'),
     markOnlineOnConnect: false,
     syncFullHistory: false,
-    generateHighQualityLinkPreview: true,
-    getMessage: async (key) => {
-      return { conversation: '' }
-    }
+    generateHighQualityLinkPreview: false, // FIX: Zima hii - inaslow
+    defaultQueryTimeoutMs: 60000,
+    keepAliveIntervalMs: 10000,
+    getMessage: async () => ({ conversation: '' })
   })
 
-  globalSock = sock // Store globally
-
-  // 8. Save Creds on Update
+  globalSock = sock
   sock.ev.on('creds.update', saveCreds)
 
-  // 9. Connection Updates
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
 
@@ -234,13 +220,13 @@ async function startBot() {
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode
-      const shouldReconnect = statusCode!== DisconnectReason.loggedOut
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut
 
       logger.error('CONNECTION', `Closed: ${statusCode}`, lastDisconnect?.error?.message)
 
       if (shouldReconnect) {
-        logger.warn('CONNECTION', 'Reconnecting in 10s...') // FIX 6: Increased delay
-        isStarting = false // Reset flag
+        logger.warn('CONNECTION', 'Reconnecting in 10s...')
+        isStarting = false
         setTimeout(() => startBot(), 10000)
       } else {
         logger.error('CONNECTION', 'Logged out. Delete sessions/ and re-pair.')
@@ -248,6 +234,11 @@ async function startBot() {
       }
 
     } else if (connection === 'open') {
+      // FIX: SET OWNER FROM CONNECTED WHATSAPP NUMBER
+      const botNumber = sock.user.id.split(':')[0].split('@')[0]
+      await db.set('owner', botNumber)
+      logger.success('OWNER', `Owner auto-set to: ${botNumber}`)
+
       const [botname, prefix, owner] = await Promise.all([
         db.get('botname'),
         db.get('prefix'),
@@ -257,31 +248,26 @@ async function startBot() {
       logger.connected(sock.user.id, botname)
       logger.banner(botname, prefix, owner, db.mode, version.join('.'))
 
-      // Send connected message
       await sendConnectedMsg(sock)
-
-      // Start RAM cleanup
       startRamCleanup()
-      isStarting = false // Reset flag after success
+      isStarting = false
     }
   })
 
-  // 10. Handle Messages
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type!== 'notify') return
+    if (type !== 'notify') return
     for (const m of messages) {
       await routeMessage(sock, m)
     }
   })
 
-  // 11. Handle Group Events — For observers
   sock.ev.on('group-participants.update', async (update) => {
     await routeEvent(sock, 'group-participants.update', update)
   })
 
   sock.ev.on('messages.update', async (updates) => {
     for (const update of updates) {
-      if (update.update.messageStubType === 8) { // Message deleted
+      if (update.update.messageStubType === 8) {
         await routeEvent(sock, 'messages.delete', update)
       }
     }
@@ -291,14 +277,13 @@ async function startBot() {
     await routeEvent(sock, 'messages.reaction', reactions)
   })
 
-  // 12. Handle Call Events
   sock.ev.on('call', async (calls) => {
     await routeEvent(sock, 'call', calls)
   })
 }
 
 // ─────────────────────────────────────────────
-// GRACEFUL SHUTDOWN — FIX 7: Use .once to prevent listener leaks
+// GRACEFUL SHUTDOWN
 // ─────────────────────────────────────────────
 process.once('SIGINT', async () => {
   logger.warn('SHUTDOWN', 'Received SIGINT — Closing connection')
