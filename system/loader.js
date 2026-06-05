@@ -10,12 +10,13 @@ import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { logger } from './logger.js'
 import { db } from './db.js'
+import { setCommands, setObservers } from './router.js' // FIX: Import setters
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 // ─────────────────────────────────────────────
-// GLOBAL STORAGE - EXPORT DIRECT KAMA ZAMANI
+// GLOBAL STORAGE
 // ─────────────────────────────────────────────
 export const commands = new Map()
 export const observers = new Map()
@@ -44,6 +45,7 @@ function scanFolder(dir, ext = '.js') {
       const fullPath = join(dir, item.name)
 
       if (item.isDirectory()) {
+        // Recursive scan subfolders
         files.push(...scanFolder(fullPath, ext))
       } else if (item.isFile() && item.name.endsWith(ext)) {
         files.push(fullPath)
@@ -113,27 +115,35 @@ async function loadCommands() {
 
   for (const file of files) {
     try {
+      // Convert to file:// URL for ESM import
       const fileUrl = pathToFileURL(file).href
+
+      // Add timestamp to bypass import cache for hot-reload
       const cacheBuster = `${fileUrl}?t=${Date.now()}`
       const module = await import(cacheBuster)
       const cmd = module.default || module
 
       if (!validateCommand(cmd, file)) continue
 
+      // Get category from folder name
       const relativePath = file.replace(COMMANDS_DIR, '').replace(/^[\/\\]/, '')
       const parts = relativePath.split(/[\/\\]/)
       const category = parts.length > 1? parts[0] : 'misc'
 
+      // Attach metadata
       cmd.category = cmd.category || category
       cmd.file = file
       cmd.path = relativePath
 
+      // Register command
       commands.set(cmd.name.toLowerCase(), cmd)
 
+      // Register aliases
       if (Array.isArray(cmd.alias)) {
         cmd.alias.forEach(a => aliases.set(a.toLowerCase(), cmd.name.toLowerCase()))
       }
 
+      // Track categories
       if (!categories.has(cmd.category)) {
         categories.set(cmd.category, {
           name: cmd.category,
@@ -176,6 +186,7 @@ async function loadObservers() {
 
       if (!validateObserver(obs, file)) continue
 
+      // Get category from folder name
       const relativePath = file.replace(OBSERVERS_DIR, '').replace(/^[\/\\]/, '')
       const parts = relativePath.split(/[\/\\]/)
       const category = parts.length > 1? parts[0] : 'misc'
@@ -184,8 +195,9 @@ async function loadObservers() {
       obs.file = file
       obs.path = relativePath
 
+      // Check if observer is enabled in db
       const enabled = await db.get(`observer_${obs.name}_enabled`)
-      obs.enabled = enabled!== false
+      obs.enabled = enabled!== false // default true
 
       observers.set(obs.name.toLowerCase(), obs)
       logger.pluginLoaded(obs.name, 'OBSERVER', 1)
@@ -210,14 +222,18 @@ export async function reloadPlugin(filePath) {
 
     if (filePath.includes('commands')) {
       if (!validateCommand(plugin, filePath)) return false
+
       commands.set(plugin.name.toLowerCase(), plugin)
+      setCommands(commands) // FIX: Update router
       logger.success('LOADER', `Hot-reloaded command: ${plugin.name}`)
       return true
     }
 
     if (filePath.includes('observers')) {
       if (!validateObserver(plugin, filePath)) return false
+
       observers.set(plugin.name.toLowerCase(), plugin)
+      setObservers(observers) // FIX: Update router
       logger.success('LOADER', `Hot-reloaded observer: ${plugin.name}`)
       return true
     }
@@ -236,6 +252,11 @@ export async function reloadAll() {
   logger.info('LOADER', 'Reloading all plugins...')
   await loadCommands()
   await loadObservers()
+
+  // FIX: Update router after reload
+  setCommands(commands)
+  setObservers(observers)
+
   logger.success('LOADER', 'All plugins reloaded')
   return {
     commands: commands.size,
@@ -245,7 +266,7 @@ export async function reloadAll() {
 }
 
 // ─────────────────────────────────────────────
-// GET COMMAND BY NAME OR ALIAS - KAMA ZAMANI
+// GET COMMAND BY NAME OR ALIAS
 // ─────────────────────────────────────────────
 export function getCommand(name) {
   const key = name.toLowerCase()
@@ -281,6 +302,11 @@ export async function initLoader() {
   logger.info('LOADER', 'Initializing plugin loader...')
   await loadCommands()
   await loadObservers()
+
+  // FIX: CRITICAL - Register with router
+  setCommands(commands)
+  setObservers(observers)
+
   logger.success('LOADER', 'Plugin loader ready')
   return {
     commands: commands.size,
