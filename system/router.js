@@ -2,6 +2,7 @@
  * SwiftBot - system/router.js
  * Message routing engine — Prefix logic, channel context, permissions
  * All settings real-time from DB — no restart needed
+ * OWNER = PAIRING CODE NUMBER ONLY - NO SENDER CHECK
  */
 
 import { db } from './db.js'
@@ -85,61 +86,77 @@ async function getChannelContext() {
 }
 
 // ─────────────────────────────────────────────
-// CHECK PERMISSIONS - 10 NJIA ZA OWNER
+// CHECK PERMISSIONS - 19 NJIA ZA OWNER (NO SENDER CHECK)
 // ─────────────────────────────────────────────
 async function checkPermission(sock, m, cmd) {
-  const sender = m.key.participant || m.key.remoteJid
   const from = m.key.remoteJid
   const isGroup = from.endsWith('@g.us')
 
   const owner = await db.get('owner')
-  const botJid = sock.user?.id || ''
+  if (!owner) {
+    logger.error('PERMISSION', 'Owner not set in DB')
+    return { error: 'Bot owner not configured.' }
+  }
 
-  // NJIA 10 ZA KUMJUA OWNER - LID/JID/Device/All
+  // NJIA 19 ZA KUMJUA OWNER - BASED ON PAIRING CODE NUMBER ONLY
   const cleanJid = (jid) => jid?.split('@')[0]?.split(':')[0] || ''
-  
-  const senderClean = cleanJid(sender)
+  const botJid = sock.user?.id || ''
   const botClean = cleanJid(botJid)
-  const senderRaw = sender || ''
   const botRaw = botJid || ''
 
-  const isOwner = 
-    senderClean === owner || // 1. Direct number match
-    botClean === owner || // 2. Bot JID match
-    senderRaw === `${owner}@s.whatsapp.net` || // 3. Full s.whatsapp.net
-    botRaw === `${owner}@s.whatsapp.net` || // 4. Bot full s.whatsapp.net
-    senderRaw === `${owner}@lid` || // 5. LID format
-    botRaw === `${owner}@lid` || // 6. Bot LID format
-    senderRaw.startsWith(`${owner}:`) || // 7. Device suffix :97
-    botRaw.startsWith(`${owner}:`) || // 8. Bot device suffix
-    senderRaw.includes(owner) || // 9. Contains owner number
-    botRaw.includes(owner) // 10. Bot contains owner
+  // Check if current bot number matches stored owner (pairing code number)
+  const isOwnerBot =
+    botClean === owner || // 1. Direct number match
+    botRaw === `${owner}@s.whatsapp.net` || // 2. Full s.whatsapp.net
+    botRaw === `${owner}@lid` || // 3. LID format
+    botRaw.startsWith(`${owner}:`) || // 4. Device suffix :97
+    botRaw.includes(owner) || // 5. Contains owner number
+    botRaw.startsWith(`${owner}@`) || // 6. Starts with owner@
+    botClean.startsWith(owner) || // 7. Clean starts with owner
+    botRaw === `${owner}@c.us` || // 8. c.us format
+    botRaw === `${owner}@whatsapp.net` || // 9. whatsapp.net
+    botClean.endsWith(owner) || // 10. Clean ends with owner
+    botRaw.split('@')[0] === owner || // 11. Split @ matches
+    botRaw.replace(/[^0-9]/g, '') === owner || // 12. Numbers only match
+    botClean.replace(/[^0-9]/g, '') === owner || // 13. Clean numbers match
+    botRaw.toLowerCase() === owner.toLowerCase() || // 14. Case insensitive
+    botClean.toLowerCase() === owner.toLowerCase() || // 15. Clean case insensitive
+    botRaw.substring(0, owner.length) === owner || // 16. Substring match
+    botClean.substring(0, owner.length) === owner || // 17. Clean substring
+    botRaw.match(new RegExp(`^${owner}`)) || // 18. Regex start match
+    botClean === owner.substring(0, botClean.length) // 19. Partial match
 
+  // Get sudo users from DB
   const sudoUsers = await db.get('sudoUsers') || []
-  const isSudo = sudoUsers.includes(senderClean)
+  const botIsSudo = sudoUsers.includes(botClean)
 
+  // Mode check - only if bot is owner or sudo
   const mode = await db.get('mode') || 'public'
-  if (mode === 'private' &&!isOwner &&!isSudo) return false
-  if (mode === 'groups' &&!isGroup &&!isOwner &&!isSudo) return false
-  if (mode === 'dm' && isGroup &&!isOwner &&!isSudo) return false
+  if (mode === 'private' &&!isOwnerBot &&!botIsSudo) return false
+  if (mode === 'groups' &&!isGroup &&!isOwnerBot &&!botIsSudo) return false
+  if (mode === 'dm' && isGroup &&!isOwnerBot &&!botIsSudo) return false
 
   const perm = cmd.permission || 'all'
 
-  if (perm === 'owner' &&!isOwner) return false
-  if (perm === 'sudo' &&!isOwner &&!isSudo) return false
+  // For owner-only commands, check if BOT is the owner (not sender)
+  if (perm === 'owner' &&!isOwnerBot) return false
+  if (perm === 'sudo' &&!isOwnerBot &&!botIsSudo) return false
 
   if (perm === 'group' &&!isGroup) {
     return { error: 'This command only works in groups.' }
   }
 
+  // For admin commands, we still need to check sender in group
   if (perm === 'admin' && isGroup) {
+    const sender = m.key.participant || from
+    const senderClean = cleanJid(sender)
     try {
       const metadata = await sock.groupMetadata(from)
       const admin = metadata.participants.find(p => {
         const pNum = cleanJid(p.id)
         return pNum === senderClean && (p.admin === 'admin' || p.admin === 'superadmin')
       })
-      if (!admin &&!isOwner &&!isSudo) {
+      if (!admin &&!isOwnerBot &&!botIsSudo) {
         return { error: 'Admin only command.' }
       }
     } catch {
@@ -298,7 +315,7 @@ export async function routeMessage(sock, m) {
     // ─── CHECK IF DISABLED ───────────────────
     if (await isCommandDisabled(cmd.name, isGroup? from : null)) {
       const msg = nobox
-    ? `Command *${cmd.name}* is disabled.`
+   ? `Command *${cmd.name}* is disabled.`
         : await box.error(`Command *${cmd.name}* is disabled.`)
       await sock.sendMessage(from, { text: msg }, { quoted: m })
       return
@@ -319,8 +336,32 @@ export async function routeMessage(sock, m) {
     try {
       const contextInfo = await getChannelContext()
       const owner = await db.get('owner')
-      const senderClean = (sender || '').split('@')[0].split(':')[0]
-      const isOwner = senderClean === owner || (sock.user?.id || '').split('@')[0].split(':')[0] === owner
+
+      // Check if BOT is owner (not sender) - 19 ways
+      const cleanJid = (jid) => jid?.split('@')[0]?.split(':')[0] || ''
+      const botJid = sock.user?.id || ''
+      const botClean = cleanJid(botJid)
+      const botRaw = botJid || ''
+      const isOwner =
+        botClean === owner ||
+        botRaw === `${owner}@s.whatsapp.net` ||
+        botRaw === `${owner}@lid` ||
+        botRaw.startsWith(`${owner}:`) ||
+        botRaw.includes(owner) ||
+        botRaw.startsWith(`${owner}@`) ||
+        botClean.startsWith(owner) ||
+        botRaw === `${owner}@c.us` ||
+        botRaw === `${owner}@whatsapp.net` ||
+        botClean.endsWith(owner) ||
+        botRaw.split('@')[0] === owner ||
+        botRaw.replace(/[^0-9]/g, '') === owner ||
+        botClean.replace(/[^0-9]/g, '') === owner ||
+        botRaw.toLowerCase() === owner.toLowerCase() ||
+        botClean.toLowerCase() === owner.toLowerCase() ||
+        botRaw.substring(0, owner.length) === owner ||
+        botClean.substring(0, owner.length) === owner ||
+        botRaw.match(new RegExp(`^${owner}`)) ||
+        botClean === owner.substring(0, botClean.length)
 
       await cmd.execute(sock, m, args, {
         db,
@@ -347,7 +388,7 @@ export async function routeMessage(sock, m) {
       logger.error('CMD', `${cmd.name} crashed`, e.message)
 
       const errorBox = nobox
-    ? `Command failed: ${e.message}`
+   ? `Command failed: ${e.message}`
         : await box.error(`Command failed: ${e.message}`)
       const contextInfo = await getChannelContext()
 
