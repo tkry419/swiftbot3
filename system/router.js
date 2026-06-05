@@ -85,7 +85,7 @@ async function getChannelContext() {
 }
 
 // ─────────────────────────────────────────────
-// CHECK PERMISSIONS
+// CHECK PERMISSIONS - 10 NJIA ZA OWNER
 // ─────────────────────────────────────────────
 async function checkPermission(sock, m, cmd) {
   const sender = m.key.participant || m.key.remoteJid
@@ -93,11 +93,30 @@ async function checkPermission(sock, m, cmd) {
   const isGroup = from.endsWith('@g.us')
 
   const owner = await db.get('owner')
-  const senderNum = sender.split('@')[0].split(':')[0]
-  const isOwner = senderNum === owner || sender === `${owner}@s.whatsapp.net`
+  const botJid = sock.user?.id || ''
+
+  // NJIA 10 ZA KUMJUA OWNER - LID/JID/Device/All
+  const cleanJid = (jid) => jid?.split('@')[0]?.split(':')[0] || ''
+  
+  const senderClean = cleanJid(sender)
+  const botClean = cleanJid(botJid)
+  const senderRaw = sender || ''
+  const botRaw = botJid || ''
+
+  const isOwner = 
+    senderClean === owner || // 1. Direct number match
+    botClean === owner || // 2. Bot JID match
+    senderRaw === `${owner}@s.whatsapp.net` || // 3. Full s.whatsapp.net
+    botRaw === `${owner}@s.whatsapp.net` || // 4. Bot full s.whatsapp.net
+    senderRaw === `${owner}@lid` || // 5. LID format
+    botRaw === `${owner}@lid` || // 6. Bot LID format
+    senderRaw.startsWith(`${owner}:`) || // 7. Device suffix :97
+    botRaw.startsWith(`${owner}:`) || // 8. Bot device suffix
+    senderRaw.includes(owner) || // 9. Contains owner number
+    botRaw.includes(owner) // 10. Bot contains owner
 
   const sudoUsers = await db.get('sudoUsers') || []
-  const isSudo = sudoUsers.includes(senderNum)
+  const isSudo = sudoUsers.includes(senderClean)
 
   const mode = await db.get('mode') || 'public'
   if (mode === 'private' &&!isOwner &&!isSudo) return false
@@ -117,8 +136,8 @@ async function checkPermission(sock, m, cmd) {
     try {
       const metadata = await sock.groupMetadata(from)
       const admin = metadata.participants.find(p => {
-        const pNum = p.id.split('@')[0].split(':')[0]
-        return pNum === senderNum && (p.admin === 'admin' || p.admin === 'superadmin')
+        const pNum = cleanJid(p.id)
+        return pNum === senderClean && (p.admin === 'admin' || p.admin === 'superadmin')
       })
       if (!admin &&!isOwner &&!isSudo) {
         return { error: 'Admin only command.' }
@@ -190,7 +209,6 @@ async function sendReact(sock, m) {
 // ─────────────────────────────────────────────
 export async function routeMessage(sock, m) {
   try {
-    // REMOVED: if (m.key.fromMe) return
     if (!m.message || m.key.remoteJid === 'status@broadcast') return
 
     const from = m.key.remoteJid
@@ -280,7 +298,7 @@ export async function routeMessage(sock, m) {
     // ─── CHECK IF DISABLED ───────────────────
     if (await isCommandDisabled(cmd.name, isGroup? from : null)) {
       const msg = nobox
-     ? `Command *${cmd.name}* is disabled.`
+    ? `Command *${cmd.name}* is disabled.`
         : await box.error(`Command *${cmd.name}* is disabled.`)
       await sock.sendMessage(from, { text: msg }, { quoted: m })
       return
@@ -301,7 +319,8 @@ export async function routeMessage(sock, m) {
     try {
       const contextInfo = await getChannelContext()
       const owner = await db.get('owner')
-      const isOwner = sender.split('@')[0].split(':')[0] === owner
+      const senderClean = (sender || '').split('@')[0].split(':')[0]
+      const isOwner = senderClean === owner || (sock.user?.id || '').split('@')[0].split(':')[0] === owner
 
       await cmd.execute(sock, m, args, {
         db,
@@ -328,7 +347,7 @@ export async function routeMessage(sock, m) {
       logger.error('CMD', `${cmd.name} crashed`, e.message)
 
       const errorBox = nobox
-     ? `Command failed: ${e.message}`
+    ? `Command failed: ${e.message}`
         : await box.error(`Command failed: ${e.message}`)
       const contextInfo = await getChannelContext()
 
