@@ -10,69 +10,85 @@ import { fonts } from './fonts.js'
 import { logger } from './logger.js'
 
 // ─────────────────────────────────────────────
-// BOX CHARACTERS — Theme support later
+// 30 PREMIUM DYNAMIC BOX STYLES — Added
 // ─────────────────────────────────────────────
-const BOX_CHARS = {
-  default: {
-    tl: '╭', tr: '╮', bl: '╰', br: '╯',
-    h: '─', v: '│', m: '├', mr: '┤'
-  },
-  bold: {
-    tl: '┏', tr: '┓', bl: '┗', br: '┛',
-    h: '━', v: '┃', m: '┣', mr: '┫'
-  },
-  double: {
-    tl: '╔', tr: '╗', bl: '╚', br: '╝',
-    h: '═', v: '║', m: '╠', mr: '╣'
-  },
-  simple: {
-    tl: '+', tr: '+', bl: '+', br: '+',
-    h: '-', v: '|', m: '+', mr: '+'
-  }
+const BOX_STYLES = {
+  '1': { name: 'Classic', top: '┌─⭓', line: '│ ', bottom: '└─────────────⭓' },
+  '2': { name: 'Double', top: '╔══❐', line: '║ ', bottom: '╚═════════════❐' },
+  '3': { name: 'Rounded', top: '╭─⊷', line: '│ ', bottom: '╰─────────────⊷' },
+  '4': { name: 'Fire', top: '🔥─⭓', line: '🔥 ', bottom: '🔥────────────⭓' },
+  '5': { name: 'Cyber', top: '┏━[', line: '┃ ', bottom: '┗━━━━━━━━━━━━┛' },
+  '6': { name: 'Royal', top: '👑━⭓', line: '👑 ', bottom: '👑━━━━━━━━━━━━⭓' },
+  '7': { name: 'Galaxy', top: '🌌─⭓', line: '🌌 ', bottom: '🌌────────────⭓' },
+  '8': { name: 'Neon', top: '⚡═❐', line: '⚡ ', bottom: '⚡═════════════❐' },
+  '9': { name: 'Diamond', top: '💎─⭓', line: '💎 ', bottom: '💎────────────⭓' },
+  '10': { name: 'Matrix', top: '▓▒░', line: '▓▒░ ', bottom: '░▒▓────────────░' },
+  '11': { name: 'Wave', top: '〰️─⭓', line: '〰️ ', bottom: '〰️────────────⭓' },
+  '12': { name: 'Arrow', top: '➤─❐', line: '➤ ', bottom: '➤─────────────❐' },
+  '13': { name: 'Star', top: '⭐─⭓', line: '⭐ ', bottom: '⭐────────────⭓' },
+  '14': { name: 'Minimal', top: '─', line: ' ', bottom: '─────────────' },
+  '15': { name: 'Bold', top: '▰▰▰', line: '▰ ', bottom: '▰▰▰▰▰▰▰▰▰▰' },
+  '16': { name: 'Dotted', top: '┄┄┄', line: '┊ ', bottom: '┄┄┄' },
+  '17': { name: 'Gradient', top: '░▒▓█', line: '█▓▒ ', bottom: '█▓▒░────────────░' },
+  '18': { name: 'Crystal', top: '🔮─⭓', line: '🔮 ', bottom: '🔮────────────⭓' },
+  '19': { name: 'Tech', top: '◢◤', line: '◢◤ ', bottom: '◥◣────────────◣' },
+  '20': { name: 'Premium', top: '✨━━━━━━━━━✨', line: '✨ ', bottom: '✨━━━━━━━━━━━━━━✨' },
+  '21': { name: 'Shadow', top: '▌│█║▌│█║▌', line: '▌│█ ', bottom: '▌│█║▌│█║▌' },
+  '22': { name: 'Flame', top: '🔱─⭓', line: '🔱 ', bottom: '🔱────────────⭓' },
+  '23': { name: 'Cloud', top: '☁️─⭓', line: '☁️ ', bottom: '☁️────────────⭓' },
+  '24': { name: 'Skull', top: '💀━❐', line: '💀 ', bottom: '💀━━━━━━━━━━━━❐' },
+  '25': { name: 'Heart', top: '💖─⭓', line: '💖 ', bottom: '💖────────────⭓' },
+  '26': { name: 'Dragon', top: '🐉═❐', line: '🐉 ', bottom: '🐉═════════════❐' },
+  '27': { name: 'Rainbow', top: '🌈─⭓', line: '🌈 ', bottom: '🌈────────────⭓' },
+  '28': { name: 'Leaf', top: '🍃━⭓', line: '🍃 ', bottom: '🍃━━━━━━━━━━━━⭓' },
+  '29': { name: 'Ghost', top: '👻─❐', line: '👻 ', bottom: '👻─────────────❐' },
+  '30': { name: 'Infinity', top: '♾️━⭓', line: '♾️ ', bottom: '♾️━━━━━━━━━━━━⭓' },
+  'none': { name: 'None', top: '', line: '', bottom: '' }
 }
 
 // ─────────────────────────────────────────────
-// GET CURRENT SETTINGS — Real-time from DB
+// GET CURRENT SETTINGS — Real-time from DB + Box Style
 // ─────────────────────────────────────────────
 async function getSettings() {
-  const [prefix, botname, theme] = await Promise.all([
+  const [prefix, botname, boxStyle] = await Promise.all([
     db.get('prefix'),
     db.get('botname'),
-    db.get('theme')
+    db.get('boxStyle') // FIX: Load box style from DB
   ])
 
   return {
     prefix: prefix || '#',
     botname: botname || 'SwiftBot',
-    theme: theme || 'default'
+    boxStyle: boxStyle || '1' // Default Classic
   }
 }
 
 // ─────────────────────────────────────────────
-// BUILD BOX FRAME
+// BUILD FRAME — Now uses 30 styles
 // ─────────────────────────────────────────────
-function buildFrame(lines, theme = 'default') {
-  const chars = BOX_CHARS[theme] || BOX_CHARS.default
-  const maxLen = Math.max(...lines.map(l => l.length))
-  const width = maxLen + 2
+function buildFrame(lines, styleId = '1') {
+  const style = BOX_STYLES[styleId] || BOX_STYLES['1']
 
-  const top = chars.tl + chars.h.repeat(width) + chars.tr
-  const bottom = chars.bl + chars.h.repeat(width) + chars.br
+  // If style is 'none', return plain text
+  if (styleId === 'none') {
+    return lines.join('\n')
+  }
 
-  const middle = lines.map(line => {
-    const pad = ' '.repeat(width - line.length - 1)
-    return `${chars.v} ${line}${pad}${chars.v}`
-  })
+  const top = style.top
+  const bottom = style.bottom
+
+  const middle = lines.map(line => `${style.line}${line}`)
 
   return [top,...middle, bottom].join('\n')
 }
 
 // ─────────────────────────────────────────────
-// BUILD SEPARATOR LINE
+// BUILD SEPARATOR LINE — Uses style
 // ─────────────────────────────────────────────
-function separator(theme = 'default', width = 20) {
-  const chars = BOX_CHARS[theme] || BOX_CHARS.default
-  return chars.m + chars.h.repeat(width) + chars.mr
+function separator(styleId = '1', width = 20) {
+  const style = BOX_STYLES[styleId] || BOX_STYLES['1']
+  if (styleId === 'none') return '─'.repeat(width)
+  return style.line + '─'.repeat(width)
 }
 
 // ─────────────────────────────────────────────
@@ -81,7 +97,7 @@ function separator(theme = 'default', width = 20) {
 export const box = {
   // Simple reply box
   async reply(text, footer = '') {
-    const { botname, theme } = await getSettings()
+    const { botname, boxStyle } = await getSettings()
     const lines = []
 
     lines.push(fonts.sansBold(botname))
@@ -93,62 +109,62 @@ export const box = {
       lines.push(fonts.smallCaps(footer))
     }
 
-    return buildFrame(lines, theme)
+    return buildFrame(lines, boxStyle)
   },
 
   // Success box
   async success(msg) {
-    const { theme } = await getSettings()
+    const { boxStyle } = await getSettings()
     const lines = [
       fonts.sansBold('✅ SUCCESS'),
       '',
       msg
     ]
-    return buildFrame(lines, theme)
+    return buildFrame(lines, boxStyle)
   },
 
   // Error box
   async error(msg) {
-    const { theme } = await getSettings()
+    const { boxStyle } = await getSettings()
     const lines = [
       fonts.sansBold('❌ ERROR'),
       '',
       msg
     ]
-    return buildFrame(lines, theme)
+    return buildFrame(lines, boxStyle)
   },
 
   // Info box
   async info(title, msg) {
-    const { theme } = await getSettings()
+    const { boxStyle } = await getSettings()
     const lines = [
       fonts.sansBold(`ℹ️ ${title.toUpperCase()}`),
       '',
       msg
     ]
-    return buildFrame(lines, theme)
+    return buildFrame(lines, boxStyle)
   },
 
   // List box
   async list(title, items = []) {
-    const { theme } = await getSettings()
+    const { boxStyle } = await getSettings()
     const lines = [fonts.sansBold(title.toUpperCase()), '']
 
     items.forEach((item, i) => {
       lines.push(`${i + 1}. ${fonts.sans(item)}`)
     })
 
-    return buildFrame(lines, theme)
+    return buildFrame(lines, boxStyle)
   },
 
   // Menu box — shows current prefix
   async menu(botname, prefix, categories = []) {
-    const { theme } = await getSettings()
+    const { boxStyle } = await getSettings()
     const lines = [
       fonts.sansBold(`${botname.toUpperCase()} MENU`),
       '',
       fonts.smallCaps(`Prefix: ${prefix}`),
-      separator(theme, 25),
+      separator(boxStyle, 25),
       ''
     ]
 
@@ -161,17 +177,17 @@ export const box = {
     lines.push(fonts.smallCaps(`Reply with number to view`))
     lines.push(fonts.smallCaps(`Example: ${prefix}menu 1`))
 
-    return buildFrame(lines, theme)
+    return buildFrame(lines, boxStyle)
   },
 
   // Command list for category
   async category(botname, prefix, catName, commands = []) {
-    const { theme } = await getSettings()
+    const { boxStyle } = await getSettings()
     const lines = [
       fonts.sansBold(`${botname.toUpperCase()} - ${catName.toUpperCase()}`),
       '',
       fonts.smallCaps(`Prefix: ${prefix}`),
-      separator(theme, 25),
+      separator(boxStyle, 25),
       ''
     ]
 
@@ -182,15 +198,15 @@ export const box = {
       lines.push('')
     })
 
-    return buildFrame(lines, theme)
+    return buildFrame(lines, boxStyle)
   },
 
   // Stats box
   async stats(data = {}) {
-    const { botname, theme } = await getSettings()
+    const { botname, boxStyle } = await getSettings()
     const lines = [
       fonts.sansBold(`${botname.toUpperCase()} STATS`),
-      separator(theme, 25),
+      separator(boxStyle, 25),
       ''
     ]
 
@@ -199,12 +215,12 @@ export const box = {
       lines.push(`${fonts.bold(label)}: ${fonts.sans(val)}`)
     })
 
-    return buildFrame(lines, theme)
+    return buildFrame(lines, boxStyle)
   },
 
   // Custom box — full control
   async custom(lines = [], useTitle = true) {
-    const { botname, theme } = await getSettings()
+    const { botname, boxStyle } = await getSettings()
     const finalLines = []
 
     if (useTitle) {
@@ -213,21 +229,26 @@ export const box = {
     }
 
     finalLines.push(...lines)
-    return buildFrame(finalLines, theme)
+    return buildFrame(finalLines, boxStyle)
   },
 
   // Alert box — for broadcasts
   async alert(title, msg) {
-    const { botname, theme } = await getSettings()
+    const { botname, boxStyle } = await getSettings()
     const lines = [
       fonts.sansBold(`📢 ${botname.toUpperCase()} ALERT`),
-      separator(theme, 25),
+      separator(boxStyle, 25),
       '',
       fonts.bold(title.toUpperCase()),
       '',
       msg
     ]
-    return buildFrame(lines, theme)
+    return buildFrame(lines, boxStyle)
+  },
+
+  // Get all styles — for #setbox command
+  getStyles() {
+    return BOX_STYLES
   }
 }
 
