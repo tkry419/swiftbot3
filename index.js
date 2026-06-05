@@ -16,9 +16,16 @@ import { logger } from './system/logger.js'
 import { initLoader } from './system/loader.js'
 import { routeMessage, routeEvent } from './system/router.js'
 import { box } from './system/box.js'
+import { fonts } from './system/fonts.js' // FIX 1: fonts ilikosa
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+// FIX 2: Prevent multiple instances + memory leaks
+process.setMaxListeners(20)
+let globalSock = null
+let isStarting = false
+let cleanupInterval = null
 
 // ─────────────────────────────────────────────
 // SESSION PATH
@@ -138,7 +145,9 @@ async function sendConnectedMsg(sock) {
 // RAM CLEANUP — Prevent memory leak
 // ─────────────────────────────────────────────
 function startRamCleanup() {
-  setInterval(() => {
+  if (cleanupInterval) clearInterval(cleanupInterval) // FIX 3: Clear old interval
+  
+  cleanupInterval = setInterval(() => {
     const mem = process.memoryUsage()
     const used = mem.heapUsed / 1024 / 1024
 
@@ -158,7 +167,17 @@ function startRamCleanup() {
 // START BOT
 // ─────────────────────────────────────────────
 async function startBot() {
+  if (isStarting) return // FIX 4: Prevent double start
+  isStarting = true
+  
   logger.bot('STARTUP', 'Starting SwiftBot...')
+
+  // FIX 5: Kill old socket before starting new one
+  if (globalSock) {
+    try { await globalSock.end() } catch {}
+    globalSock = null
+    await new Promise(r => setTimeout(r, 2000)) // Wait 2s for WhatsApp to release
+  }
 
   // 1. Init Database
   await initDb()
@@ -199,6 +218,8 @@ async function startBot() {
     }
   })
 
+  globalSock = sock // Store globally
+
   // 8. Save Creds on Update
   sock.ev.on('creds.update', saveCreds)
 
@@ -218,8 +239,9 @@ async function startBot() {
       logger.error('CONNECTION', `Closed: ${statusCode}`, lastDisconnect?.error?.message)
 
       if (shouldReconnect) {
-        logger.warn('CONNECTION', 'Reconnecting...')
-        setTimeout(() => startBot(), 3000)
+        logger.warn('CONNECTION', 'Reconnecting in 10s...') // FIX 6: Increased delay
+        isStarting = false // Reset flag
+        setTimeout(() => startBot(), 10000)
       } else {
         logger.error('CONNECTION', 'Logged out. Delete sessions/ and re-pair.')
         process.exit(1)
@@ -240,6 +262,7 @@ async function startBot() {
 
       // Start RAM cleanup
       startRamCleanup()
+      isStarting = false // Reset flag after success
     }
   })
 
@@ -272,22 +295,30 @@ async function startBot() {
   sock.ev.on('call', async (calls) => {
     await routeEvent(sock, 'call', calls)
   })
-
-  // 13. Graceful Shutdown
-  process.on('SIGINT', async () => {
-    logger.warn('SHUTDOWN', 'Received SIGINT — Closing connection')
-    await sock.end()
-    process.exit(0)
-  })
-
-  process.on('uncaughtException', (err) => {
-    logger.error('CRASH', 'Uncaught Exception', err.message)
-  })
-
-  process.on('unhandledRejection', (err) => {
-    logger.error('CRASH', 'Unhandled Rejection', err?.message || err)
-  })
 }
+
+// ─────────────────────────────────────────────
+// GRACEFUL SHUTDOWN — FIX 7: Use .once to prevent listener leaks
+// ─────────────────────────────────────────────
+process.once('SIGINT', async () => {
+  logger.warn('SHUTDOWN', 'Received SIGINT — Closing connection')
+  if (globalSock) await globalSock.end()
+  process.exit(0)
+})
+
+process.once('SIGTERM', async () => {
+  logger.warn('SHUTDOWN', 'Received SIGTERM — Closing connection')
+  if (globalSock) await globalSock.end()
+  process.exit(0)
+})
+
+process.on('uncaughtException', (err) => {
+  logger.error('CRASH', 'Uncaught Exception', err.message)
+})
+
+process.on('unhandledRejection', (err) => {
+  logger.error('CRASH', 'Unhandled Rejection', err?.message || err)
+})
 
 // ─────────────────────────────────────────────
 // START
