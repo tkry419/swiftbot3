@@ -8,59 +8,21 @@ import { db } from './db.js'
 import { logger } from './logger.js'
 import { box } from './box.js'
 import { fonts } from './fonts.js'
-
-// FIX: Use Maps set by loader.js instead of importing
-let commands = new Map()
-let observers = new Map()
-
-export function setCommands(cmds) {
-  commands = cmds
-  logger.success('ROUTER', `Registered ${cmds.size} commands`)
-}
-
-export function setObservers(obs) {
-  observers = obs
-  logger.success('ROUTER', `Registered ${obs.size} observers`)
-}
-
-export function getCommand(name) {
-  // Check direct name
-  if (commands.has(name)) return commands.get(name)
-
-  // Check aliases
-  for (const [_, cmd] of commands) {
-    if (cmd.alias && cmd.alias.includes(name)) {
-      return cmd
-    }
-  }
-  return null
-}
+import { getCommand, observers } from './loader.js' // KAMA ZAMANI
 
 // ─────────────────────────────────────────────
-// 50 REACT KEYS — Random reactions
-// ─────────────────────────────────────────────
-const REACT_KEYS = [
-  '✅','❤️','🔥','💯','👍','😂','😍','🤔','👏','💀',
-  '⚡','✨','🌟','🎯','🚀','💎','👑','🌈','🎉','💪',
-  '🙏','😎','🥳','🤩','😇','🤗','😘','🤫','🤐','🤑',
-  '🤠','👻','👽','🤖','😺','🐶','🦁','🐯','🦄','🐸',
-  '🍕','🍔','🍟','🌮','🍩','🍪','🍭','🍯','🧃','☕'
-]
-
-// ─────────────────────────────────────────────
-// CHANNEL CONTEXT — With removeads support
+// CHANNEL CONTEXT — Old style forwarded + View Channel
 // ─────────────────────────────────────────────
 async function getChannelContext() {
-  const [enabled, removeads, jid, link, name, score] = await Promise.all([
+  const [enabled, jid, link, name, score] = await Promise.all([
     db.get('channelEnabled'),
-    db.get('removeads'),
     db.get('channelJid'),
     db.get('channelLink'),
     db.get('channelName'),
     db.get('channelForwardScore')
   ])
 
-  if (!enabled ||!jid || removeads) return null
+  if (!enabled ||!jid) return null
 
   return {
     forwardingScore: score || 430,
@@ -85,25 +47,28 @@ async function getChannelContext() {
 }
 
 // ─────────────────────────────────────────────
-// CHECK PERMISSIONS
+// CHECK PERMISSIONS - RAHISI KAMA ZAMANI
 // ─────────────────────────────────────────────
 async function checkPermission(sock, m, cmd) {
   const sender = m.key.participant || m.key.remoteJid
   const from = m.key.remoteJid
   const isGroup = from.endsWith('@g.us')
 
+  // Owner check - RAHISI
   const owner = await db.get('owner')
-  const senderNum = sender.split('@')[0].split(':')[0]
-  const isOwner = senderNum === owner || sender === `${owner}@s.whatsapp.net`
+  const isOwner = sender === `${owner}@s.whatsapp.net` || sender === owner
 
+  // Sudo check
   const sudoUsers = await db.get('sudoUsers') || []
-  const isSudo = sudoUsers.includes(senderNum)
+  const isSudo = sudoUsers.includes(sender.replace('@s.whatsapp.net', ''))
 
+  // Bot mode check
   const mode = await db.get('mode') || 'public'
   if (mode === 'private' &&!isOwner &&!isSudo) return false
   if (mode === 'groups' &&!isGroup &&!isOwner &&!isSudo) return false
   if (mode === 'dm' && isGroup &&!isOwner &&!isSudo) return false
 
+  // Command permission level
   const perm = cmd.permission || 'all'
 
   if (perm === 'owner' &&!isOwner) return false
@@ -116,10 +81,9 @@ async function checkPermission(sock, m, cmd) {
   if (perm === 'admin' && isGroup) {
     try {
       const metadata = await sock.groupMetadata(from)
-      const admin = metadata.participants.find(p => {
-        const pNum = p.id.split('@')[0].split(':')[0]
-        return pNum === senderNum && (p.admin === 'admin' || p.admin === 'superadmin')
-      })
+      const admin = metadata.participants.find(p =>
+        p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin')
+      )
       if (!admin &&!isOwner &&!isSudo) {
         return { error: 'Admin only command.' }
       }
@@ -153,7 +117,7 @@ const userCooldown = new Map()
 async function antiSpam(sender) {
   const now = Date.now()
   const last = userCooldown.get(sender) || 0
-  const delay = 1200
+  const delay = 1500
 
   if (now - last < delay) {
     return false
@@ -164,39 +128,19 @@ async function antiSpam(sender) {
 }
 
 // ─────────────────────────────────────────────
-// SEND RANDOM REACT — 50 keys support
-// ─────────────────────────────────────────────
-async function sendReact(sock, m) {
-  try {
-    const [reactEnabled, customReact] = await Promise.all([
-      db.get('reactEnabled'),
-      db.get('reactKey')
-    ])
-
-    if (reactEnabled === false) return
-
-    const reactKey = customReact || REACT_KEYS[Math.floor(Math.random() * REACT_KEYS.length)]
-
-    await sock.sendMessage(m.key.remoteJid, {
-      react: { text: reactKey, key: m.key }
-    })
-  } catch (e) {
-    // Silent fail
-  }
-}
-
-// ─────────────────────────────────────────────
 // MAIN MESSAGE ROUTER
 // ─────────────────────────────────────────────
 export async function routeMessage(sock, m) {
   try {
+    // Ignore status broadcasts, empty messages
     if (!m.message || m.key.remoteJid === 'status@broadcast') return
-    if (m.key.fromMe) return // FIX: Skip bot's own messages
+    // HAKUNA fromMe CHECK - KAMA ZAMANI
 
     const from = m.key.remoteJid
     const sender = m.key.participant || from
     const isGroup = from.endsWith('@g.us')
 
+    // Get message text
     const type = Object.keys(m.message)[0]
     const body = m.message.conversation
       || m.message.extendedTextMessage?.text
@@ -206,6 +150,7 @@ export async function routeMessage(sock, m) {
 
     if (!body) return
 
+    // Log incoming
     logger.incoming(from, sender.split('@')[0], body.slice(0, 30))
 
     // ─── RUN OBSERVERS FIRST ─────────────────
@@ -219,10 +164,9 @@ export async function routeMessage(sock, m) {
     }
 
     // ─── LOAD SETTINGS ───────────────────────
-    const [prefix, noPrefix, nobox, autoRead, autoTyping, autoRecording] = await Promise.all([
+    const [prefix, noPrefix, autoRead, autoTyping, autoRecording] = await Promise.all([
       db.get('prefix'),
       db.get('noPrefix'),
-      db.get('nobox'),
       db.get('autoRead'),
       db.get('autoTyping'),
       db.get('autoRecording')
@@ -267,21 +211,15 @@ export async function routeMessage(sock, m) {
     // ─── ANTI-SPAM ───────────────────────────
     if (!await antiSpam(sender)) return
 
-    // ─── SEND RANDOM REACT ───────────────────
-    await sendReact(sock, m)
+    // HAKUNA REACT - KAMA ZAMANI
 
     // ─── GET COMMAND ─────────────────────────
     const cmd = getCommand(cmdName)
-    if (!cmd) {
-      logger.warn('ROUTER', `Command not found: ${cmdName}`)
-      return
-    }
+    if (!cmd) return
 
     // ─── CHECK IF DISABLED ───────────────────
     if (await isCommandDisabled(cmd.name, isGroup? from : null)) {
-      const msg = nobox
-      ? `Command *${cmd.name}* is disabled.`
-        : await box.error(`Command *${cmd.name}* is disabled.`)
+      const msg = await box.error(`Command *${cmd.name}* is disabled.`)
       await sock.sendMessage(from, { text: msg }, { quoted: m })
       return
     }
@@ -290,7 +228,7 @@ export async function routeMessage(sock, m) {
     const permCheck = await checkPermission(sock, m, cmd)
     if (permCheck!== true) {
       const errorMsg = permCheck.error || 'You do not have permission to use this command.'
-      const msg = nobox? errorMsg : await box.error(errorMsg)
+      const msg = await box.error(errorMsg)
       await sock.sendMessage(from, { text: msg }, { quoted: m })
       return
     }
@@ -300,8 +238,6 @@ export async function routeMessage(sock, m) {
 
     try {
       const contextInfo = await getChannelContext()
-      const owner = await db.get('owner')
-      const isOwner = sender.split('@')[0].split(':')[0] === owner
 
       await cmd.execute(sock, m, args, {
         db,
@@ -313,12 +249,10 @@ export async function routeMessage(sock, m) {
         sender,
         from,
         isGroup,
-        isOwner,
         contextInfo,
         cmdName,
         args,
-        body,
-        nobox
+        body
       })
 
       logger.executed(cmd.name, sender.split('@')[0], true)
@@ -327,9 +261,7 @@ export async function routeMessage(sock, m) {
       logger.executed(cmd.name, sender.split('@')[0], false)
       logger.error('CMD', `${cmd.name} crashed`, e.message)
 
-      const errorBox = nobox
-      ? `Command failed: ${e.message}`
-        : await box.error(`Command failed: ${e.message}`)
+      const errorBox = await box.error(`Command failed: ${e.message}`)
       const contextInfo = await getChannelContext()
 
       await sock.sendMessage(from, {
