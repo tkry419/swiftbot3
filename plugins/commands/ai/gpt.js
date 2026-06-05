@@ -11,12 +11,12 @@ export default {
   category: 'ai',
   permission: 'all',
 
-  execute: async (sock, m, args, { db, box, fonts, logger }) => {
+  execute: async (sock, m, args, { db, box, fonts, logger, prefix }) => {
     const from = m.key.remoteJid
     const question = args.join(' ')
 
     if (!question) {
-      const msg = await box.error(`Usage: ${fonts.mono(await db.get('prefix') + 'gpt <question>')}`)
+      const msg = await box.error(`Usage: ${fonts.mono(prefix + 'gpt <question>')}`)
       return await sock.sendMessage(from, { text: msg }, { quoted: m })
     }
 
@@ -28,7 +28,7 @@ export default {
       db.get('agentSystem')
     ])
 
-    if (!agentEnabled ||!apiKey) {
+    if (!agentEnabled || !apiKey) {
       const msg = await box.error('AI is disabled. Owner: use #setagentapi <key> and #agentenable')
       return await sock.sendMessage(from, { text: msg }, { quoted: m })
     }
@@ -59,7 +59,8 @@ export default {
       const data = await response.json()
       const answer = data.choices[0].message.content
 
-      const msg = await box.reply(answer, `Powered by ${model || 'llama3-70b'}`)
+      // FIX: box.reply haipo, tumia box.text au direct
+      const msg = await box.text(`*Powered by ${model || 'llama3-70b'}*\n\n${answer}`)
       await sock.sendMessage(from, { text: msg }, { quoted: m })
       await sock.sendMessage(from, { react: { text: '✅', key: m.key } })
 
