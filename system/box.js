@@ -3,6 +3,7 @@
  * Boxes/formatting engine — Real-time from DB
  * Uses fonts.js for styles, db.js for prefix/botname
  * No hardcode — everything updates live
+ * NO EMOJIS - SWIFTBOT STYLE ONLY
  */
 
 import { db } from './db.js'
@@ -10,39 +11,39 @@ import { fonts } from './fonts.js'
 import { logger } from './logger.js'
 
 // ─────────────────────────────────────────────
-// 30 PREMIUM DYNAMIC BOX STYLES — Added
+// 30 PREMIUM SWIFTBOT BOX STYLES — NO EMOJIS
 // ─────────────────────────────────────────────
 const BOX_STYLES = {
-  '1': { name: 'Classic', top: '┌─⭓', line: '│ ', bottom: '└─────────────⭓' },
-  '2': { name: 'Double', top: '╔══❐', line: '║ ', bottom: '╚═════════════❐' },
-  '3': { name: 'Rounded', top: '╭─⊷', line: '│ ', bottom: '╰─────────────⊷' },
-  '4': { name: 'Fire', top: '🔥─⭓', line: '🔥 ', bottom: '🔥────────────⭓' },
-  '5': { name: 'Cyber', top: '┏━[', line: '┃ ', bottom: '┗━━━━━━━━━━━━┛' },
-  '6': { name: 'Royal', top: '👑━⭓', line: '👑 ', bottom: '👑━━━━━━━━━━━━⭓' },
-  '7': { name: 'Galaxy', top: '🌌─⭓', line: '🌌 ', bottom: '🌌────────────⭓' },
-  '8': { name: 'Neon', top: '⚡═❐', line: '⚡ ', bottom: '⚡═════════════❐' },
-  '9': { name: 'Diamond', top: '💎─⭓', line: '💎 ', bottom: '💎────────────⭓' },
-  '10': { name: 'Matrix', top: '▓▒░', line: '▓▒░ ', bottom: '░▒▓────────────░' },
-  '11': { name: 'Wave', top: '〰️─⭓', line: '〰️ ', bottom: '〰️────────────⭓' },
-  '12': { name: 'Arrow', top: '➤─❐', line: '➤ ', bottom: '➤─────────────❐' },
-  '13': { name: 'Star', top: '⭐─⭓', line: '⭐ ', bottom: '⭐────────────⭓' },
-  '14': { name: 'Minimal', top: '─', line: ' ', bottom: '─────────────' },
-  '15': { name: 'Bold', top: '▰▰▰', line: '▰ ', bottom: '▰▰▰▰▰▰▰▰▰▰' },
-  '16': { name: 'Dotted', top: '┄┄┄', line: '┊ ', bottom: '┄┄┄' },
-  '17': { name: 'Gradient', top: '░▒▓█', line: '█▓▒ ', bottom: '█▓▒░────────────░' },
-  '18': { name: 'Crystal', top: '🔮─⭓', line: '🔮 ', bottom: '🔮────────────⭓' },
-  '19': { name: 'Tech', top: '◢◤', line: '◢◤ ', bottom: '◥◣────────────◣' },
-  '20': { name: 'Premium', top: '✨━━━━━━━━━✨', line: '✨ ', bottom: '✨━━━━━━━━━━━━━━✨' },
-  '21': { name: 'Shadow', top: '▌│█║▌│█║▌', line: '▌│█ ', bottom: '▌│█║▌│█║▌' },
-  '22': { name: 'Flame', top: '🔱─⭓', line: '🔱 ', bottom: '🔱────────────⭓' },
-  '23': { name: 'Cloud', top: '☁️─⭓', line: '☁️ ', bottom: '☁️────────────⭓' },
-  '24': { name: 'Skull', top: '💀━❐', line: '💀 ', bottom: '💀━━━━━━━━━━━━❐' },
-  '25': { name: 'Heart', top: '💖─⭓', line: '💖 ', bottom: '💖────────────⭓' },
-  '26': { name: 'Dragon', top: '🐉═❐', line: '🐉 ', bottom: '🐉═════════════❐' },
-  '27': { name: 'Rainbow', top: '🌈─⭓', line: '🌈 ', bottom: '🌈────────────⭓' },
-  '28': { name: 'Leaf', top: '🍃━⭓', line: '🍃 ', bottom: '🍃━━━━━━━━━━━━⭓' },
-  '29': { name: 'Ghost', top: '👻─❐', line: '👻 ', bottom: '👻─────────────❐' },
-  '30': { name: 'Infinity', top: '♾️━⭓', line: '♾️ ', bottom: '♾️━━━━━━━━━━━━⭓' },
+  '1': { name: 'Classic', top: '╔═━━━━━━━━━━━━━━━━═❒', line: '║ 𖠁 ', bottom: '╚━━━━━━━━━━━━━━━━━═❒' },
+  '2': { name: 'Double', top: '╔═══━━━━━━━━━━━━━═══╗', line: '║ 𖠁 ', bottom: '╚═══━━━━━━━━━━━━━═══╝' },
+  '3': { name: 'Rounded', top: '╭──━━━━━━━━━━━━─╮', line: '│ 𖠁 ', bottom: '╰──━━━━━━━━━━━━─╯' },
+  '4': { name: 'Thick', top: '┏━━━━━━━━━━━━━━━━┓', line: '┃ 𖠁 ', bottom: '┗━━━━━━━━━━━━━━━━┛' },
+  '5': { name: 'Cyber', top: '┏━[ SYSTEM ]━━━━━┓', line: '┃ 𖠁 ', bottom: '┗━━━━━━━━━━━━━━━━━┛' },
+  '6': { name: 'Royal', top: '╔═━[ ROYAL ]━═╗', line: '║ 𖠁 ', bottom: '╚═━━━━━━━━━━━━═╝' },
+  '7': { name: 'Shadow', top: '▛▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▜', line: '▌ 𖠁 ', bottom: '▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▟' },
+  '8': { name: 'Tech', top: '◢◤◢◤◢◤◢◤', line: '◢◤ 𖠁 ', bottom: '◥◣◥◣' },
+  '9': { name: 'Diamond', top: '◆━━━━━[ DATA ]━━━━━◆', line: '◆ 𖠁 ', bottom: '◆━━━━━━━━━━━━━━━━◆' },
+  '10': { name: 'Matrix', top: '▓▒░▒▓▒░▒▓▒░▒▓', line: '▓▒░ 𖠁 ', bottom: '▓▒░▒▓▒░▒▓▒░▒▓' },
+  '11': { name: 'Wave', top: '〰〰〰〰', line: '〰 𖠁 ', bottom: '〰〰〰〰' },
+  '12': { name: 'Arrow', top: '➤───────────────➤', line: '➤ 𖠁 ', bottom: '➤───────────────➤' },
+  '13': { name: 'Star', top: '★━━━━━━━━━━━━━━━★', line: '★ 𖠁 ', bottom: '★━━━━━━━━━━━━━━━★' },
+  '14': { name: 'Minimal', top: '─────────────────', line: ' 𖠁 ', bottom: '─────────────────' },
+  '15': { name: 'Bold', top: '▰▰▰▰▰▰▰▰▰▰▰', line: '▰ 𖠁 ', bottom: '▰▰▰▰▰▰▰▰▰▰▰' },
+  '16': { name: 'Dotted', top: '┄┄┄┄┄', line: '┊ 𖠁 ', bottom: '┄┄┄┄┄' },
+  '17': { name: 'Gradient', top: '░▒▓█▓▒░▒▓█▓▒░', line: '█▓▒ 𖠁 ', bottom: '░▒▓█▓▒░▒▓█▓▒░' },
+  '18': { name: 'Frame', top: '▛▀▀▀▀▀▀▀▀▀▀▀▀▀▜', line: '▌ 𖠁 ', bottom: '▙▄▄▄▄▄▄▄▄▄▄▄▟' },
+  '19': { name: 'Border', top: '╔═════════════════╗', line: '║ 𖠁 ', bottom: '╚═════════════════╝' },
+  '20': { name: 'Premium', top: '✧━━━━━━━━━━━━━━━━━✧', line: '✧ 𖠁 ', bottom: '✧━━━━━━━━━━━━━━━━━✧' },
+  '21': { name: 'Lines', top: '│││││', line: '│ 𖠁 ', bottom: '│││││││││' },
+  '22': { name: 'Block', top: '█████████████████', line: '█ 𖠁 ', bottom: '█████████████████' },
+  '23': { name: 'Clean', top: '┌─────────────────┐', line: '│ 𖠁 ', bottom: '└─────────────────┘' },
+  '24': { name: 'Sharp', top: '╔═[ SWIFTBOT ]═╗', line: '║ 𖠁 ', bottom: '╚══════════════╝' },
+  '25': { name: 'Solid', top: '███████████████████', line: '██ 𖠁 ', bottom: '███████████████████' },
+  '26': { name: 'Outline', top: '╭━━━━━━━━━━━━━━━━━╮', line: '│ 𖠁 ', bottom: '╰━━━━━━━━━━━━━━━━━╯' },
+  '27': { name: 'Corner', top: '┌──────────────────┐', line: '│ 𖠁 ', bottom: '└──────────────────┘' },
+  '28': { name: 'Wide', top: '╔══════════════════════╗', line: '║ 𖠁 ', bottom: '╚══════════════════════╝' },
+  '29': { name: 'Thin', top: '┌─────────────────┐', line: '│ 𖠁 ', bottom: '└─────────────────┘' },
+  '30': { name: 'Infinity', top: '♾━━━━━━━━━━━━━━━━━♾', line: '♾ 𖠁 ', bottom: '♾━━━━━━━━━━━━━━━━━♾' },
   'none': { name: 'None', top: '', line: '', bottom: '' }
 }
 
@@ -53,18 +54,18 @@ async function getSettings() {
   const [prefix, botname, boxStyle] = await Promise.all([
     db.get('prefix'),
     db.get('botname'),
-    db.get('boxStyle') // FIX: Load box style from DB
+    db.get('boxStyle')
   ])
 
   return {
     prefix: prefix || '#',
     botname: botname || 'SwiftBot',
-    boxStyle: boxStyle || '1' // Default Classic
+    boxStyle: boxStyle || '1'
   }
 }
 
 // ─────────────────────────────────────────────
-// BUILD FRAME — Now uses 30 styles
+// BUILD FRAME — SWIFTBOT STYLE
 // ─────────────────────────────────────────────
 function buildFrame(lines, styleId = '1') {
   const style = BOX_STYLES[styleId] || BOX_STYLES['1']
@@ -76,7 +77,6 @@ function buildFrame(lines, styleId = '1') {
 
   const top = style.top
   const bottom = style.bottom
-
   const middle = lines.map(line => `${style.line}${line}`)
 
   return [top,...middle, bottom].join('\n')
@@ -116,7 +116,7 @@ export const box = {
   async success(msg) {
     const { boxStyle } = await getSettings()
     const lines = [
-      fonts.sansBold('✅ SUCCESS'),
+      fonts.sansBold('SUCCESS'),
       '',
       msg
     ]
@@ -127,7 +127,7 @@ export const box = {
   async error(msg) {
     const { boxStyle } = await getSettings()
     const lines = [
-      fonts.sansBold('❌ ERROR'),
+      fonts.sansBold('ERROR'),
       '',
       msg
     ]
@@ -138,7 +138,7 @@ export const box = {
   async info(title, msg) {
     const { boxStyle } = await getSettings()
     const lines = [
-      fonts.sansBold(`ℹ️ ${title.toUpperCase()}`),
+      fonts.sansBold(title.toUpperCase()),
       '',
       msg
     ]
@@ -170,7 +170,7 @@ export const box = {
 
     categories.forEach((cat, i) => {
       lines.push(`${i + 1}. ${fonts.bold(cat.name)}`)
-      lines.push(` ${fonts.smallCaps(cat.desc || '')}`)
+      if (cat.desc) lines.push(` ${fonts.smallCaps(cat.desc)}`)
       lines.push('')
     })
 
@@ -236,7 +236,7 @@ export const box = {
   async alert(title, msg) {
     const { botname, boxStyle } = await getSettings()
     const lines = [
-      fonts.sansBold(`📢 ${botname.toUpperCase()} ALERT`),
+      fonts.sansBold(`${botname.toUpperCase()} ALERT`),
       separator(boxStyle, 25),
       '',
       fonts.bold(title.toUpperCase()),
@@ -249,6 +249,11 @@ export const box = {
   // Get all styles — for #setbox command
   getStyles() {
     return BOX_STYLES
+  },
+
+  // Plain text - no box
+  async text(msg) {
+    return msg
   }
 }
 
