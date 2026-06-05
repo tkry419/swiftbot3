@@ -2,8 +2,10 @@
  * SwiftBot - index.js
  * Main entry point — Baileys connection, session load, plugin init
  * Real-time everything — MongoDB/RAM auto-detect
+ * Fixed for Render + no port errors
  */
 
+import express from 'express' // ADDED: For Render port binding
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } from '@whiskeysockets/baileys'
 import pino from 'pino'
 import fs from 'fs'
@@ -20,6 +22,30 @@ import { fonts } from './system/fonts.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+// ─────────────────────────────────────────────
+// FIX: EXPRESS SERVER FOR RENDER - PREVENTS PORT SCAN TIMEOUT
+// ─────────────────────────────────────────────
+const app = express()
+const PORT = process.env.PORT || 3000
+
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    bot: 'SwiftBot',
+    uptime: process.uptime(),
+    memory: `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB`
+  })
+})
+
+app.listen(PORT, () => {
+  logger.success('SERVER', `Dummy port ${PORT} opened for Render`)
+})
+
+// FIX: Keep-alive ping every 14 minutes to prevent sleep
+setInterval(() => {
+  fetch(`http://localhost:${PORT}`).catch(() => {})
+}, 14 * 60 * 1000)
 
 // FIX: Prevent multiple instances + memory leaks
 process.setMaxListeners(20)
@@ -39,7 +65,7 @@ const CREDS_PATH = join(SESSION_DIR, 'creds.json')
 function loadSessionFromEnv() {
   const sessionId = process.env.SESSION_ID
 
-  if (!sessionId || !sessionId.startsWith('SWIFTBOT~')) {
+  if (!sessionId ||!sessionId.startsWith('SWIFTBOT~')) {
     logger.error('SESSION', 'No SESSION_ID found in env')
     logger.info('SESSION', 'Run: node pair.js to generate one')
     return false
@@ -85,13 +111,14 @@ async function loadBotImage() {
 // ─────────────────────────────────────────────
 async function sendConnectedMsg(sock) {
   try {
-    const [botname, owner, prefix, channelJid, channelName, channelLink] = await Promise.all([
+    const [botname, owner, prefix, channelJid, channelName, channelLink, mode] = await Promise.all([
       db.get('botname'),
       db.get('owner'),
       db.get('prefix'),
       db.get('channelJid'),
       db.get('channelName'),
-      db.get('channelLink')
+      db.get('channelLink'),
+      db.get('mode')
     ])
 
     const ownerJid = `${owner}@s.whatsapp.net`
@@ -99,8 +126,8 @@ async function sendConnectedMsg(sock) {
       `Connected Successfully ✅\n\n` +
       `Bot: ${fonts.bold(botname)}\n` +
       `Prefix: ${fonts.mono(prefix)}\n` +
-      `Mode: ${fonts.sans(await db.get('mode'))}\n` +
-      `Owner: ${fonts.bold(owner)}\n` + // FIX: Show owner
+      `Mode: ${fonts.sans(mode)}\n` +
+      `Owner: ${fonts.bold(owner)}\n` +
       `DB: ${fonts.smallCaps(db.mode)}\n\n` +
       `Type ${fonts.bold(prefix + 'menu')} to start`,
       'SwiftBot v2.0'
@@ -120,7 +147,7 @@ async function sendConnectedMsg(sock) {
         renderLargerThumbnail: false,
         verifiedBizName: 'WhatsApp'
       },
-      forwardedNewsletterMessageInfo: channelJid ? {
+      forwardedNewsletterMessageInfo: channelJid? {
         newsletterJid: channelJid,
         newsletterName: channelName || 'SwiftBot Updates',
         serverMessageId: Math.floor(Math.random() * 100000)
@@ -201,7 +228,7 @@ async function startBot() {
     browser: Browsers.ubuntu('Chrome'),
     markOnlineOnConnect: false,
     syncFullHistory: false,
-    generateHighQualityLinkPreview: false, // FIX: Zima hii - inaslow
+    generateHighQualityLinkPreview: false,
     defaultQueryTimeoutMs: 60000,
     keepAliveIntervalMs: 10000,
     getMessage: async () => ({ conversation: '' })
@@ -220,7 +247,7 @@ async function startBot() {
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut
+      const shouldReconnect = statusCode!== DisconnectReason.loggedOut
 
       logger.error('CONNECTION', `Closed: ${statusCode}`, lastDisconnect?.error?.message)
 
@@ -255,7 +282,7 @@ async function startBot() {
   })
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return
+    if (type!== 'notify') return
     for (const m of messages) {
       await routeMessage(sock, m)
     }
