@@ -8,7 +8,33 @@ import { db } from './db.js'
 import { logger } from './logger.js'
 import { box } from './box.js'
 import { fonts } from './fonts.js'
-import { getCommand, observers } from './loader.js'
+
+// FIX: Use Maps set by loader.js instead of importing
+let commands = new Map()
+let observers = new Map()
+
+export function setCommands(cmds) {
+  commands = cmds
+  logger.success('ROUTER', `Registered ${cmds.size} commands`)
+}
+
+export function setObservers(obs) {
+  observers = obs
+  logger.success('ROUTER', `Registered ${obs.size} observers`)
+}
+
+export function getCommand(name) {
+  // Check direct name
+  if (commands.has(name)) return commands.get(name)
+
+  // Check aliases
+  for (const [_, cmd] of commands) {
+    if (cmd.alias && cmd.alias.includes(name)) {
+      return cmd
+    }
+  }
+  return null
+}
 
 // ─────────────────────────────────────────────
 // 50 REACT KEYS — Random reactions
@@ -27,14 +53,13 @@ const REACT_KEYS = [
 async function getChannelContext() {
   const [enabled, removeads, jid, link, name, score] = await Promise.all([
     db.get('channelEnabled'),
-    db.get('removeads'), // FIX: Check if ads removed
+    db.get('removeads'),
     db.get('channelJid'),
     db.get('channelLink'),
     db.get('channelName'),
     db.get('channelForwardScore')
   ])
 
-  // FIX: If removeads = true, return null = no channel data
   if (!enabled ||!jid || removeads) return null
 
   return {
@@ -44,7 +69,7 @@ async function getChannelContext() {
       title: 'WhatsApp',
       body: `Contact: ${name || 'SwiftBot Updates'}`,
       mediaType: 1,
-      thumbnail: null, // Loaded in index.js
+      thumbnail: null,
       mediaUrl: link || '',
       sourceUrl: link || '',
       showAdAttribution: true,
@@ -67,23 +92,19 @@ async function checkPermission(sock, m, cmd) {
   const from = m.key.remoteJid
   const isGroup = from.endsWith('@g.us')
 
-  // Owner check — FIX: Support @lid format
   const owner = await db.get('owner')
   const senderNum = sender.split('@')[0].split(':')[0]
   const isOwner = senderNum === owner || sender === `${owner}@s.whatsapp.net`
 
-  // Sudo check
   const sudoUsers = await db.get('sudoUsers') || []
   const isSudo = sudoUsers.includes(senderNum)
 
-  // Bot mode check
   const mode = await db.get('mode') || 'public'
   if (mode === 'private' &&!isOwner &&!isSudo) return false
   if (mode === 'groups' &&!isGroup &&!isOwner &&!isSudo) return false
   if (mode === 'dm' && isGroup &&!isOwner &&!isSudo) return false
 
-  // Command permission level
-  const perm = cmd.permission || 'all' // all | group | admin | owner | sudo
+  const perm = cmd.permission || 'all'
 
   if (perm === 'owner' &&!isOwner) return false
   if (perm === 'sudo' &&!isOwner &&!isSudo) return false
@@ -114,11 +135,9 @@ async function checkPermission(sock, m, cmd) {
 // CHECK IF COMMAND DISABLED
 // ─────────────────────────────────────────────
 async function isCommandDisabled(cmdName, groupJid = null) {
-  // Global disabled
   const disabledCmds = await db.get('disabledCmds') || []
   if (disabledCmds.includes(cmdName)) return true
 
-  // Per-group disabled
   if (groupJid) {
     const groupDisabled = await db.getGroupKey(groupJid, 'disabledCmds') || []
     if (groupDisabled.includes(cmdName)) return true
@@ -134,7 +153,7 @@ const userCooldown = new Map()
 async function antiSpam(sender) {
   const now = Date.now()
   const last = userCooldown.get(sender) || 0
-  const delay = 1200 // FIX: Reduced to 1.2s for faster response
+  const delay = 1200
 
   if (now - last < delay) {
     return false
@@ -154,7 +173,6 @@ async function sendReact(sock, m) {
       db.get('reactKey')
     ])
 
-    // FIX: If reacts disabled, skip
     if (reactEnabled === false) return
 
     const reactKey = customReact || REACT_KEYS[Math.floor(Math.random() * REACT_KEYS.length)]
@@ -163,7 +181,7 @@ async function sendReact(sock, m) {
       react: { text: reactKey, key: m.key }
     })
   } catch (e) {
-    // Silent fail — don't break commands if react fails
+    // Silent fail
   }
 }
 
@@ -172,14 +190,13 @@ async function sendReact(sock, m) {
 // ─────────────────────────────────────────────
 export async function routeMessage(sock, m) {
   try {
-    // Ignore status broadcasts, empty messages
     if (!m.message || m.key.remoteJid === 'status@broadcast') return
+    if (m.key.fromMe) return // FIX: Skip bot's own messages
 
     const from = m.key.remoteJid
     const sender = m.key.participant || from
     const isGroup = from.endsWith('@g.us')
 
-    // Get message text
     const type = Object.keys(m.message)[0]
     const body = m.message.conversation
       || m.message.extendedTextMessage?.text
@@ -189,7 +206,6 @@ export async function routeMessage(sock, m) {
 
     if (!body) return
 
-    // Log incoming
     logger.incoming(from, sender.split('@')[0], body.slice(0, 30))
 
     // ─── RUN OBSERVERS FIRST ─────────────────
@@ -206,7 +222,7 @@ export async function routeMessage(sock, m) {
     const [prefix, noPrefix, nobox, autoRead, autoTyping, autoRecording] = await Promise.all([
       db.get('prefix'),
       db.get('noPrefix'),
-      db.get('nobox'), // FIX: Check if box disabled
+      db.get('nobox'),
       db.get('autoRead'),
       db.get('autoTyping'),
       db.get('autoRecording')
@@ -237,7 +253,6 @@ export async function routeMessage(sock, m) {
       cmdName = parts[0].toLowerCase()
       args = parts.slice(1)
     } else if (noPrefix) {
-      // FIX: No-prefix mode — check if first word is a command
       const parts = body.trim().split(/\s+/)
       const firstWord = parts[0].toLowerCase()
       if (getCommand(firstWord)) {
@@ -257,13 +272,15 @@ export async function routeMessage(sock, m) {
 
     // ─── GET COMMAND ─────────────────────────
     const cmd = getCommand(cmdName)
-    if (!cmd) return
+    if (!cmd) {
+      logger.warn('ROUTER', `Command not found: ${cmdName}`)
+      return
+    }
 
     // ─── CHECK IF DISABLED ───────────────────
     if (await isCommandDisabled(cmd.name, isGroup? from : null)) {
-      // FIX: Respect nobox setting
       const msg = nobox
-       ? `Command *${cmd.name}* is disabled.`
+      ? `Command *${cmd.name}* is disabled.`
         : await box.error(`Command *${cmd.name}* is disabled.`)
       await sock.sendMessage(from, { text: msg }, { quoted: m })
       return
@@ -282,10 +299,10 @@ export async function routeMessage(sock, m) {
     logger.executed(cmd.name, sender.split('@')[0])
 
     try {
-      // Inject channel context if enabled
       const contextInfo = await getChannelContext()
+      const owner = await db.get('owner')
+      const isOwner = sender.split('@')[0].split(':')[0] === owner
 
-      // Execute with full context
       await cmd.execute(sock, m, args, {
         db,
         box,
@@ -296,11 +313,12 @@ export async function routeMessage(sock, m) {
         sender,
         from,
         isGroup,
+        isOwner,
         contextInfo,
         cmdName,
         args,
         body,
-        nobox // FIX: Pass nobox to commands
+        nobox
       })
 
       logger.executed(cmd.name, sender.split('@')[0], true)
@@ -310,7 +328,7 @@ export async function routeMessage(sock, m) {
       logger.error('CMD', `${cmd.name} crashed`, e.message)
 
       const errorBox = nobox
-       ? `Command failed: ${e.message}`
+      ? `Command failed: ${e.message}`
         : await box.error(`Command failed: ${e.message}`)
       const contextInfo = await getChannelContext()
 
