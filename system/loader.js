@@ -10,6 +10,7 @@ import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { logger } from './logger.js'
 import { db } from './db.js'
+import { setCommands, setObservers } from './router.js' // FIX: Import setters
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -223,6 +224,7 @@ export async function reloadPlugin(filePath) {
       if (!validateCommand(plugin, filePath)) return false
 
       commands.set(plugin.name.toLowerCase(), plugin)
+      setCommands(commands) // FIX: Update router
       logger.success('LOADER', `Hot-reloaded command: ${plugin.name}`)
       return true
     }
@@ -231,6 +233,7 @@ export async function reloadPlugin(filePath) {
       if (!validateObserver(plugin, filePath)) return false
 
       observers.set(plugin.name.toLowerCase(), plugin)
+      setObservers(observers) // FIX: Update router
       logger.success('LOADER', `Hot-reloaded observer: ${plugin.name}`)
       return true
     }
@@ -249,6 +252,11 @@ export async function reloadAll() {
   logger.info('LOADER', 'Reloading all plugins...')
   await loadCommands()
   await loadObservers()
+
+  // FIX: Update router after reload
+  setCommands(commands)
+  setObservers(observers)
+
   logger.success('LOADER', 'All plugins reloaded')
   return {
     commands: commands.size,
@@ -294,6 +302,11 @@ export async function initLoader() {
   logger.info('LOADER', 'Initializing plugin loader...')
   await loadCommands()
   await loadObservers()
+
+  // FIX: CRITICAL - Register with router
+  setCommands(commands)
+  setObservers(observers)
+
   logger.success('LOADER', 'Plugin loader ready')
   return {
     commands: commands.size,
