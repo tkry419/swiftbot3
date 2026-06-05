@@ -17,24 +17,27 @@ export const DEFAULTS = {
   language: 'en',
   theme: 'default',
 
-  // Owner
-  owner: '255747470941',
-  ownerName: 'Lupin Starnley',
+  // Owner — FIX: Empty by default, set from sock.user.id on connect
+  owner: '',
+  ownerName: 'Owner',
 
   // Mode
-  mode: 'public',           // public | private | groups | dm
-  noPrefix: false,          // true = "menu" works without prefix
+  mode: 'public', // public | private | groups | dm
+  noPrefix: false, // true = "menu" works without prefix
+
+  // Box Style — Added for 30 styles
+  boxStyle: '1', // Default Classic
 
   // Channel context (forwarded style — same as Repo 1)
   channelEnabled: true,
-  channelJid: '',           // Set via env or setagentapi command
+  channelJid: '', // Set via env or setagentapi command
   channelLink: '',
   channelName: 'SwiftBot Updates',
   channelForwardScore: 430,
 
   // AI Agent
   agentEnabled: false,
-  agentApi: null,           // Groq API key
+  agentApi: null, // Groq API key
   agentModel: 'llama3-70b-8192',
   agentSystem: 'You are SwiftBot, a helpful WhatsApp assistant.',
   agentFallbacks: ['llama3-70b-8192', 'llama3-8b-8192', 'mixtral-8x7b-32768'],
@@ -70,7 +73,7 @@ export const DEFAULTS = {
 // ─────────────────────────────────────────────
 class RamStore {
   constructor () {
-    this._data = { ...DEFAULTS }
+    this._data = {...DEFAULTS }
     // Per-group settings stored separately
     this._groups = new Map()
     // Per-user data (xp, coins, etc.)
@@ -78,7 +81,7 @@ class RamStore {
   }
 
   async get (key) {
-    return this._data[key] ?? DEFAULTS[key] ?? null
+    return this._data[key]?? DEFAULTS[key]?? null
   }
 
   async set (key, value) {
@@ -92,7 +95,7 @@ class RamStore {
   }
 
   async getAll () {
-    return { ...this._data }
+    return {...this._data }
   }
 
   async push (key, item) {
@@ -103,34 +106,34 @@ class RamStore {
 
   async pull (key, item) {
     if (!Array.isArray(this._data[key])) return []
-    this._data[key] = this._data[key].filter(v => v !== item)
+    this._data[key] = this._data[key].filter(v => v!== item)
     return this._data[key]
   }
 
   // Group-specific settings
   async getGroup (jid) {
-    return this._groups.get(jid) ?? {}
+    return this._groups.get(jid)?? {}
   }
 
   async setGroup (jid, key, value) {
-    const current = this._groups.get(jid) ?? {}
+    const current = this._groups.get(jid)?? {}
     current[key] = value
     this._groups.set(jid, current)
     return true
   }
 
   async getGroupKey (jid, key) {
-    const group = this._groups.get(jid) ?? {}
-    return group[key] ?? null
+    const group = this._groups.get(jid)?? {}
+    return group[key]?? null
   }
 
   // User-specific data
   async getUser (jid) {
-    return this._users.get(jid) ?? { xp: 0, coins: 0, level: 1, warnings: 0 }
+    return this._users.get(jid)?? { xp: 0, coins: 0, level: 1, warnings: 0 }
   }
 
   async setUser (jid, key, value) {
-    const current = this._users.get(jid) ?? { xp: 0, coins: 0, level: 1, warnings: 0 }
+    const current = this._users.get(jid)?? { xp: 0, coins: 0, level: 1, warnings: 0 }
     current[key] = value
     this._users.set(jid, current)
     return true
@@ -138,7 +141,7 @@ class RamStore {
 
   async incrementUser (jid, key, amount = 1) {
     const user = await this.getUser(jid)
-    user[key] = (user[key] ?? 0) + amount
+    user[key] = (user[key]?? 0) + amount
     this._users.set(jid, user)
     return user[key]
   }
@@ -177,7 +180,7 @@ class MongoStore {
 
   async get (key) {
     const doc = await this._settings.findOne({ key })
-    return doc ? doc.value : (DEFAULTS[key] ?? null)
+    return doc? doc.value : (DEFAULTS[key]?? null)
   }
 
   async set (key, value) {
@@ -196,13 +199,13 @@ class MongoStore {
 
   async getAll () {
     const docs = await this._settings.find({}).toArray()
-    const result = { ...DEFAULTS }
+    const result = {...DEFAULTS }
     for (const doc of docs) result[doc.key] = doc.value
     return result
   }
 
   async push (key, item) {
-    const current = (await this.get(key)) ?? []
+    const current = (await this.get(key))?? []
     if (!Array.isArray(current)) return []
     if (!current.includes(item)) {
       current.push(item)
@@ -212,9 +215,9 @@ class MongoStore {
   }
 
   async pull (key, item) {
-    const current = (await this.get(key)) ?? []
+    const current = (await this.get(key))?? []
     if (!Array.isArray(current)) return []
-    const updated = current.filter(v => v !== item)
+    const updated = current.filter(v => v!== item)
     await this.set(key, updated)
     return updated
   }
@@ -222,7 +225,7 @@ class MongoStore {
   // Group-specific settings
   async getGroup (jid) {
     const doc = await this._groups.findOne({ jid })
-    return doc?.settings ?? {}
+    return doc?.settings?? {}
   }
 
   async setGroup (jid, key, value) {
@@ -236,13 +239,13 @@ class MongoStore {
 
   async getGroupKey (jid, key) {
     const group = await this.getGroup(jid)
-    return group[key] ?? null
+    return group[key]?? null
   }
 
   // User-specific data
   async getUser (jid) {
     const doc = await this._users.findOne({ jid })
-    return doc ?? { jid, xp: 0, coins: 0, level: 1, warnings: 0 }
+    return doc?? { jid, xp: 0, coins: 0, level: 1, warnings: 0 }
   }
 
   async setUser (jid, key, value) {
@@ -260,7 +263,7 @@ class MongoStore {
       { $inc: { [key]: amount }, $setOnInsert: { xp: 0, coins: 0, level: 1, warnings: 0 } },
       { upsert: true, returnDocument: 'after' }
     )
-    return result[key] ?? amount
+    return result[key]?? amount
   }
 
   async getAllUsers () {
@@ -270,7 +273,7 @@ class MongoStore {
 
   async getAllGroups () {
     const docs = await this._groups.find({}).toArray()
-    return Object.fromEntries(docs.map(d => [d.jid, d.settings ?? {}]))
+    return Object.fromEntries(docs.map(d => [d.jid, d.settings?? {}]))
   }
 
   get mode () { return 'mongodb' }
@@ -312,7 +315,7 @@ export async function initDb () {
 // ─────────────────────────────────────────────
 export const db = {
   get mode () {
-    return _store?.mode ?? 'uninitialized'
+    return _store?.mode?? 'uninitialized'
   },
 
   async get (key) {
