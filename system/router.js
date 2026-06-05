@@ -11,18 +11,31 @@ import { fonts } from './fonts.js'
 import { getCommand, observers } from './loader.js'
 
 // ─────────────────────────────────────────────
-// CHANNEL CONTEXT — Old style forwarded + View Channel
+// 50 REACT KEYS — Random reactions
+// ─────────────────────────────────────────────
+const REACT_KEYS = [
+  '✅','❤️','🔥','💯','👍','😂','😍','🤔','👏','💀',
+  '⚡','✨','🌟','🎯','🚀','💎','👑','🌈','🎉','💪',
+  '🙏','😎','🥳','🤩','😇','🤗','😘','🤫','🤐','🤑',
+  '🤠','👻','👽','🤖','😺','🐶','🦁','🐯','🦄','🐸',
+  '🍕','🍔','🍟','🌮','🍩','🍪','🍭','🍯','🧃','☕'
+]
+
+// ─────────────────────────────────────────────
+// CHANNEL CONTEXT — With removeads support
 // ─────────────────────────────────────────────
 async function getChannelContext() {
-  const [enabled, jid, link, name, score] = await Promise.all([
+  const [enabled, removeads, jid, link, name, score] = await Promise.all([
     db.get('channelEnabled'),
+    db.get('removeads'), // FIX: Check if ads removed
     db.get('channelJid'),
     db.get('channelLink'),
     db.get('channelName'),
     db.get('channelForwardScore')
   ])
 
-  if (!enabled ||!jid) return null
+  // FIX: If removeads = true, return null = no channel data
+  if (!enabled ||!jid || removeads) return null
 
   return {
     forwardingScore: score || 430,
@@ -54,13 +67,14 @@ async function checkPermission(sock, m, cmd) {
   const from = m.key.remoteJid
   const isGroup = from.endsWith('@g.us')
 
-  // Owner check
+  // Owner check — FIX: Support @lid format
   const owner = await db.get('owner')
-  const isOwner = sender === `${owner}@s.whatsapp.net` || sender === owner
+  const senderNum = sender.split('@')[0].split(':')[0]
+  const isOwner = senderNum === owner || sender === `${owner}@s.whatsapp.net`
 
   // Sudo check
   const sudoUsers = await db.get('sudoUsers') || []
-  const isSudo = sudoUsers.includes(sender.replace('@s.whatsapp.net', ''))
+  const isSudo = sudoUsers.includes(senderNum)
 
   // Bot mode check
   const mode = await db.get('mode') || 'public'
@@ -81,9 +95,10 @@ async function checkPermission(sock, m, cmd) {
   if (perm === 'admin' && isGroup) {
     try {
       const metadata = await sock.groupMetadata(from)
-      const admin = metadata.participants.find(p =>
-        p.id === sender && (p.admin === 'admin' || p.admin === 'superadmin')
-      )
+      const admin = metadata.participants.find(p => {
+        const pNum = p.id.split('@')[0].split(':')[0]
+        return pNum === senderNum && (p.admin === 'admin' || p.admin === 'superadmin')
+      })
       if (!admin &&!isOwner &&!isSudo) {
         return { error: 'Admin only command.' }
       }
@@ -119,7 +134,7 @@ const userCooldown = new Map()
 async function antiSpam(sender) {
   const now = Date.now()
   const last = userCooldown.get(sender) || 0
-  const delay = 1500 // 1.5s between commands
+  const delay = 1200 // FIX: Reduced to 1.2s for faster response
 
   if (now - last < delay) {
     return false
@@ -127,6 +142,29 @@ async function antiSpam(sender) {
 
   userCooldown.set(sender, now)
   return true
+}
+
+// ─────────────────────────────────────────────
+// SEND RANDOM REACT — 50 keys support
+// ─────────────────────────────────────────────
+async function sendReact(sock, m) {
+  try {
+    const [reactEnabled, customReact] = await Promise.all([
+      db.get('reactEnabled'),
+      db.get('reactKey')
+    ])
+
+    // FIX: If reacts disabled, skip
+    if (reactEnabled === false) return
+
+    const reactKey = customReact || REACT_KEYS[Math.floor(Math.random() * REACT_KEYS.length)]
+
+    await sock.sendMessage(m.key.remoteJid, {
+      react: { text: reactKey, key: m.key }
+    })
+  } catch (e) {
+    // Silent fail — don't break commands if react fails
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -165,9 +203,10 @@ export async function routeMessage(sock, m) {
     }
 
     // ─── LOAD SETTINGS ───────────────────────
-    const [prefix, noPrefix, autoRead, autoTyping, autoRecording] = await Promise.all([
+    const [prefix, noPrefix, nobox, autoRead, autoTyping, autoRecording] = await Promise.all([
       db.get('prefix'),
       db.get('noPrefix'),
+      db.get('nobox'), // FIX: Check if box disabled
       db.get('autoRead'),
       db.get('autoTyping'),
       db.get('autoRecording')
@@ -198,7 +237,7 @@ export async function routeMessage(sock, m) {
       cmdName = parts[0].toLowerCase()
       args = parts.slice(1)
     } else if (noPrefix) {
-      // No-prefix mode — check if first word is a command
+      // FIX: No-prefix mode — check if first word is a command
       const parts = body.trim().split(/\s+/)
       const firstWord = parts[0].toLowerCase()
       if (getCommand(firstWord)) {
@@ -213,13 +252,19 @@ export async function routeMessage(sock, m) {
     // ─── ANTI-SPAM ───────────────────────────
     if (!await antiSpam(sender)) return
 
+    // ─── SEND RANDOM REACT ───────────────────
+    await sendReact(sock, m)
+
     // ─── GET COMMAND ─────────────────────────
     const cmd = getCommand(cmdName)
     if (!cmd) return
 
     // ─── CHECK IF DISABLED ───────────────────
     if (await isCommandDisabled(cmd.name, isGroup? from : null)) {
-      const msg = await box.error(`Command *${cmd.name}* is disabled.`)
+      // FIX: Respect nobox setting
+      const msg = nobox
+       ? `Command *${cmd.name}* is disabled.`
+        : await box.error(`Command *${cmd.name}* is disabled.`)
       await sock.sendMessage(from, { text: msg }, { quoted: m })
       return
     }
@@ -228,7 +273,7 @@ export async function routeMessage(sock, m) {
     const permCheck = await checkPermission(sock, m, cmd)
     if (permCheck!== true) {
       const errorMsg = permCheck.error || 'You do not have permission to use this command.'
-      const msg = await box.error(errorMsg)
+      const msg = nobox? errorMsg : await box.error(errorMsg)
       await sock.sendMessage(from, { text: msg }, { quoted: m })
       return
     }
@@ -254,7 +299,8 @@ export async function routeMessage(sock, m) {
         contextInfo,
         cmdName,
         args,
-        body
+        body,
+        nobox // FIX: Pass nobox to commands
       })
 
       logger.executed(cmd.name, sender.split('@')[0], true)
@@ -263,7 +309,9 @@ export async function routeMessage(sock, m) {
       logger.executed(cmd.name, sender.split('@')[0], false)
       logger.error('CMD', `${cmd.name} crashed`, e.message)
 
-      const errorBox = await box.error(`Command failed: ${e.message}`)
+      const errorBox = nobox
+       ? `Command failed: ${e.message}`
+        : await box.error(`Command failed: ${e.message}`)
       const contextInfo = await getChannelContext()
 
       await sock.sendMessage(from, {
