@@ -1,163 +1,210 @@
 /**
- * SwiftBot - plugins/commands/automations/autoread.js
- * AutoRead Control Panel - Full customization
+ * SwiftBot - plugins/commands/automation/autoread.js
+ * Auto Read Manager - Full Control
+ * Set targets, mode - Owner only
  */
 
 export default {
   name: 'autoread',
-  desc: 'Control autoread system',
-  usage: 'autoread on/off/global/dm/type/reset',
-  category: 'automations',
-  permission: 'admin',
-  alias: ['aread', 'autore'],
+  alias: ['aread', 'autoview', 'read', 'ar2'],
+  desc: 'Control auto read/blue tick presence globally or per target',
+  usage: '[on/off/status] [global/dm/groups/user]',
+  category: 'Automation',
+  permission: 'owner',
 
-  execute: async (sock, m, args, { db, prefix, nobox, box }) => {
+  execute: async (sock, m, args, { db, prefix, isOwner }) => {
     const from = m.key.remoteJid
-    const msg = m
     const isGroup = from.endsWith('@g.us')
+
+    if (!isOwner) {
+      return await sock.sendMessage(from, {
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Owner only command\n╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
+    }
+
     const action = args[0]?.toLowerCase()
+    const target = args[1]?.toLowerCase()
+    const value = args[2]
 
-    if (!action) {
+    // STATUS
+    if (!action || action === 'status' || action === 'info') {
       const [
-        globalEnabled, groupEnabled, dmEnabled, allTypes,
-        readStickers, readImages, readVideos, readAudios,
-        readDocuments, readTexts
+        read, groups, users, dmEnabled, groupsEnabled
       ] = await Promise.all([
-        db.get('autoreadGlobalEnabled'),
-        isGroup? db.getGroupKey(from, 'autoreadEnabled') : null,
-        db.get('autoreadDmEnabled'),
-        db.get('autoreadAllTypes'),
-        db.get('autoreadStickers'),
-        db.get('autoreadImages'),
-        db.get('autoreadVideos'),
-        db.get('autoreadAudios'),
-        db.get('autoreadDocuments'),
-        db.get('autoreadTexts')
+        db.get('autoread'),
+        db.get('autoreadGroups'),
+        db.get('autoreadUsers'),
+        db.get('autoreadDM'),
+        db.get('autoreadGroupsEnabled')
       ])
 
-      const statusText = `Global: ${globalEnabled? 'ON' : 'OFF'}\n` +
-        (isGroup? `Group: ${groupEnabled === true? 'ON' : groupEnabled === false? 'OFF' : 'INHERIT'}\n` : '') +
-        `DM: ${dmEnabled? 'ON' : 'OFF'}\n` +
-        `All Types: ${allTypes!== false? 'ON' : 'OFF'}\n` +
-        `Texts: ${readTexts!== false? 'ON' : 'OFF'}\n` +
-        `Stickers: ${readStickers!== false? 'ON' : 'OFF'}\n` +
-        `Images: ${readImages!== false? 'ON' : 'OFF'}\n` +
-        `Videos: ${readVideos!== false? 'ON' : 'OFF'}\n` +
-        `Audios: ${readAudios!== false? 'ON' : 'OFF'}\n` +
-        `Documents: ${readDocuments!== false? 'ON' : 'OFF'}`
+      const groupList = groups?.length? groups.map(g => g.split('@')[0]).join(', ') : 'All'
+      const userList = users?.length? users.map(u => u.split('@')[0]).join(', ') : 'All'
 
-      const text = nobox
-? `AutoRead Control\n\nStatus:\n${statusText}\n\nUsage:\n${prefix}autoread on - Enable for this group\n${prefix}autoread off - Disable for this group\n${prefix}autoread global on - Enable globally\n${prefix}autoread dm on - Enable for DMs\n${prefix}autoread type sticker off - Disable sticker reads\n${prefix}autoread type all off - Disable all types\n${prefix}autoread reset - Reset all to default`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ AUTOREAD CONTROL\n║ \n║ ${statusText.replace(/\n/g, '\n║ ')}\n║ \n║ Usage:\n║ ${prefix}autoread on/off\n║ ${prefix}autoread global on/off\n║ ${prefix}autoread dm on/off\n║ ${prefix}autoread type sticker on/off\n║ ${prefix}autoread type all on/off\n║ ${prefix}autoread reset\n╚━━━━━━━━━━━━━━━━━═❒`
-
-      return await sock.sendMessage(from, { text }, { quoted: msg })
-    }
-
-    // GROUP ON/OFF
-    if (action === 'on' && isGroup) {
-      await db.setGroupKey(from, 'autoreadEnabled', true)
       return await sock.sendMessage(from, {
-        text: nobox? 'AutoRead enabled for this group' : await box.success('AutoRead enabled for this group')
-      }, { quoted: msg })
+        text: `╔═━━━━━━━━━━━━━━━━═❒
+║ 👁️ AUTO READ STATUS
+╠═══════════════════
+║ Read: ${read? '🟢 ON' : '🔴 OFF'}
+║
+║ 📍 TARGETS:
+║ DM Global: ${dmEnabled!== false? '✅ ON' : '❌ OFF'}
+║ Groups Global: ${groupsEnabled!== false? '✅ ON' : '❌ OFF'}
+║ Specific Groups: ${groups?.length || 0}
+║ ${groups?.length? '𖠁 ' + groupList : ''}
+║ Specific Users: ${users?.length || 0}
+║ ${users?.length? '𖠁 ' + userList : ''}
+╠═══════════════════
+║ 📝 USAGE:
+║ ${prefix}read on global
+║ ${prefix}read on dm
+║ ${prefix}read on groups
+║ ${prefix}read on user 255712345678
+║ ${prefix}read on group (this group)
+║ ${prefix}read off global
+║ ${prefix}read add user 255xxx
+║ ${prefix}read del group
+╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
     }
 
-    if (action === 'off' && isGroup) {
-      await db.setGroupKey(from, 'autoreadEnabled', false)
+    // ON / OFF
+    if (action === 'on' || action === 'enable') {
+      if (!target || target === 'global') {
+        await db.set('autoread', true)
+        await db.set('autoreadDM', true)
+        await db.set('autoreadGroupsEnabled', true)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Read Enabled\n║ Mode: GLOBAL\n║ Target: All DMs + All Groups\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+
+      if (target === 'dm' || target === 'dms' || target === 'private') {
+        await db.set('autoread', true)
+        await db.set('autoreadDM', true)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Read Enabled\n║ Mode: DMs ONLY\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+
+      if (target === 'groups' || target === 'group' || target === 'gc') {
+        await db.set('autoread', true)
+        await db.set('autoreadGroupsEnabled', true)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Read Enabled\n║ Mode: GROUPS ONLY\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+
+      if (target === 'user') {
+        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
+        const users = await db.get('autoreadUsers') || []
+        if (!users.includes(userJid)) {
+          users.push(userJid)
+          await db.set('autoreadUsers', users)
+        }
+        await db.set('autoread', true)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Read Enabled\n║ Target: ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+
+      if (target === 'group' && isGroup) {
+        const groups = await db.get('autoreadGroups') || []
+        if (!groups.includes(from)) {
+          groups.push(from)
+          await db.set('autoreadGroups', groups)
+        }
+        await db.set('autoread', true)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Read Enabled\n║ Target: THIS GROUP\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+    }
+
+    // OFF / DISABLE
+    if (action === 'off' || action === 'disable') {
+      if (!target || target === 'global') {
+        await db.set('autoread', false)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Auto Read Disabled\n║ Mode: GLOBAL OFF\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+
+      if (target === 'dm' || target === 'dms') {
+        await db.set('autoreadDM', false)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Auto Read Disabled\n║ Mode: DMs OFF\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+
+      if (target === 'groups' || target === 'group') {
+        await db.set('autoreadGroupsEnabled', false)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Auto Read Disabled\n║ Mode: GROUPS OFF\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+    }
+
+    // ADD
+    if (action === 'add') {
+      if (target === 'user') {
+        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
+        const users = await db.get('autoreadUsers') || []
+        if (!users.includes(userJid)) {
+          users.push(userJid)
+          await db.set('autoreadUsers', users)
+        }
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ User Added\n║ ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+
+      if (target === 'group' && isGroup) {
+        const groups = await db.get('autoreadGroups') || []
+        if (!groups.includes(from)) {
+          groups.push(from)
+          await db.set('autoreadGroups', groups)
+        }
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Group Added\n║ This group whitelisted\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+    }
+
+    // DEL / REMOVE
+    if (action === 'del' || action === 'remove' || action === 'delete') {
+      if (target === 'user') {
+        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
+        let users = await db.get('autoreadUsers') || []
+        users = users.filter(u => u!== userJid)
+        await db.set('autoreadUsers', users)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ User Removed\n║ ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+
+      if (target === 'group' && isGroup) {
+        let groups = await db.get('autoreadGroups') || []
+        groups = groups.filter(g => g!== from)
+        await db.set('autoreadGroups', groups)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ Group Removed\n║ This group removed\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+    }
+
+    // CLEAR ALL
+    if (action === 'clear' || action === 'reset') {
+      await db.set('autoreadUsers', [])
+      await db.set('autoreadGroups', [])
       return await sock.sendMessage(from, {
-        text: nobox? 'AutoRead disabled for this group' : await box.success('AutoRead disabled for this group')
-      }, { quoted: msg })
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ All Targets Cleared\n║ Whitelist reset\n╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
     }
 
-    // GLOBAL ON/OFF
-    if (action === 'global') {
-      const subAction = args[1]?.toLowerCase()
-      if (subAction === 'on') {
-        await db.set('autoreadGlobalEnabled', true)
-        return await sock.sendMessage(from, {
-          text: nobox? 'AutoRead enabled globally' : await box.success('AutoRead enabled globally')
-        }, { quoted: msg })
-      }
-      if (subAction === 'off') {
-        await db.set('autoreadGlobalEnabled', false)
-        return await sock.sendMessage(from, {
-          text: nobox? 'AutoRead disabled globally' : await box.success('AutoRead disabled globally')
-        }, { quoted: msg })
-      }
-    }
-
-    // DM ON/OFF
-    if (action === 'dm') {
-      const subAction = args[1]?.toLowerCase()
-      if (subAction === 'on') {
-        await db.set('autoreadDmEnabled', true)
-        return await sock.sendMessage(from, {
-          text: nobox? 'AutoRead enabled for DMs' : await box.success('AutoRead enabled for DMs')
-        }, { quoted: msg })
-      }
-      if (subAction === 'off') {
-        await db.set('autoreadDmEnabled', false)
-        return await sock.sendMessage(from, {
-          text: nobox? 'AutoRead disabled for DMs' : await box.success('AutoRead disabled for DMs')
-        }, { quoted: msg })
-      }
-    }
-
-    // TYPE CONTROL - sticker, image, video, audio, document, text, all
-    if (action === 'type') {
-      const msgType = args[1]?.toLowerCase()
-      const toggle = args[2]?.toLowerCase()
-
-      const typeMap = {
-        'sticker': 'autoreadStickers',
-        'image': 'autoreadImages',
-        'video': 'autoreadVideos',
-        'audio': 'autoreadAudios',
-        'document': 'autoreadDocuments',
-        'text': 'autoreadTexts',
-        'all': 'autoreadAllTypes'
-      }
-
-      const dbKey = typeMap[msgType]
-      if (!dbKey) {
-        return await sock.sendMessage(from, {
-          text: nobox? 'Types: sticker/image/video/audio/document/text/all' : await box.error('Types: sticker/image/video/audio/document/text/all')
-        }, { quoted: msg })
-      }
-
-      if (toggle === 'on') {
-        await db.set(dbKey, true)
-        return await sock.sendMessage(from, {
-          text: nobox? `AutoRead enabled for ${msgType}` : await box.success(`AutoRead enabled for ${msgType}`)
-        }, { quoted: msg })
-      }
-      if (toggle === 'off') {
-        await db.set(dbKey, false)
-        return await sock.sendMessage(from, {
-          text: nobox? `AutoRead disabled for ${msgType}` : await box.success(`AutoRead disabled for ${msgType}`)
-        }, { quoted: msg })
-      }
-    }
-
-    // RESET ALL
-    if (action === 'reset') {
-      await Promise.all([
-        db.set('autoreadGlobalEnabled', false),
-        db.set('autoreadDmEnabled', false),
-        db.set('autoreadAllTypes', true),
-        db.set('autoreadStickers', true),
-        db.set('autoreadImages', true),
-        db.set('autoreadVideos', true),
-        db.set('autoreadAudios', true),
-        db.set('autoreadDocuments', true),
-        db.set('autoreadTexts', true)
-      ])
-      return await sock.sendMessage(from, {
-        text: nobox? 'AutoRead reset to defaults' : await box.success('AutoRead reset to defaults')
-      }, { quoted: msg })
-    }
-
+    // INVALID
     await sock.sendMessage(from, {
-      text: nobox? 'Invalid action' : await box.error('Invalid action')
-    }, { quoted: msg })
+      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Invalid command\n║ Use: ${prefix}read status\n╚━━━━━━━━━━━━━━━━━═❒`
+    }, { quoted: m })
   }
 }
