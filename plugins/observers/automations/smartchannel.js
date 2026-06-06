@@ -1,5 +1,5 @@
 /**
- * SwiftBot - plugins/observers/smartchannel.js
+ * SwiftBot - plugins/observers/automations/smartchannel.js
  * Smart Channel AI Observer - Autonomous Posting & Interaction
  * Posts every 5 min, replies to questions, reacts, changes name/pic
  * Uses GROQ_API_KEY with full fallback logic
@@ -38,8 +38,8 @@ KEY POINTS:
 PERSONALITY: Human-like, helpful, friendly, knowledgeable. Never robotic.
 `
 
-// Helper: Call Groq with fallback
-async function askGroq(prompt, fallback = '', logger) {
+// Helper: Call Groq with fallback - FIXED: pass db as parameter
+async function askGroq(prompt, db, fallback = '', logger) {
   const key = GROQ_API_KEY || await db.get('GROQ_API_KEY')
   if (!key) return fallback
 
@@ -111,11 +111,11 @@ function startAutoPosting(sock, db, logger) {
       // Generate content with AI
       const contentType = Math.random() > 0.5? 'tutorial' : 'update'
       const prompt = contentType === 'tutorial'
-       ? 'Generate a helpful Swiftbot deployment tip or tutorial. Mention pair.swiftbot.gt.tc and one platform: Railway, Render, Heroku, VPS, or Pterodactyl. Keep it 2-3 lines, human-like.'
+      ? 'Generate a helpful Swiftbot deployment tip or tutorial. Mention pair.swiftbot.gt.tc and one platform: Railway, Render, Heroku, VPS, or Pterodactyl. Keep it 2-3 lines, human-like.'
         : 'Generate a Swiftbot update, tip, or feature highlight. Keep it 2-3 lines, engaging, human-like.'
 
       const fallback = generateFallbackContent(contentType)
-      let message = await askGroq(prompt, fallback, logger)
+      let message = await askGroq(prompt, db, fallback, logger)
 
       // Ensure footer
       if (!message.includes('Smart Swiftbot')) {
@@ -137,75 +137,74 @@ function startAutoPosting(sock, db, logger) {
   }, 60000) // Check every minute
 }
 
-export default [
-  {
-    name: 'smartchannel_messages',
-    event: 'messages.upsert',
-    desc: 'Auto reply to channel messages and react',
-    category: 'Automation',
-    enabled: true,
+// FIXED: Export as single object with name property, not array
+export default {
+  name: 'smartchannel_messages',
+  event: 'messages.upsert',
+  desc: 'Auto reply to channel messages and react',
+  category: 'Automation',
+  enabled: true,
 
-    execute: async (sock, m, { db, logger }) => {
-      try {
-        const from = m.key.remoteJid
+  execute: async (sock, m, { db, logger }) => {
+    try {
+      const from = m.key.remoteJid
 
-        // Handle channel messages
-        if (from.endsWith('@newsletter')) {
-          const [enabled, autoReply, autoReact, channelJid] = await Promise.all([
-            db.get('sc_enabled'),
-            db.get('sc_autoreply'),
-            db.get('sc_autoreact'),
-            db.get('sc_channel_jid')
-          ])
+      // Handle channel messages
+      if (from.endsWith('@newsletter')) {
+        const [enabled, autoReply, autoReact, channelJid] = await Promise.all([
+          db.get('sc_enabled'),
+          db.get('sc_autoreply'),
+          db.get('sc_autoreact'),
+          db.get('sc_channel_jid')
+        ])
 
-          if (!enabled) return
-          if (from!== (channelJid || DEFAULT_CHANNEL_JID)) return
-          if (m.key.fromMe) return
+        if (!enabled) return
+        if (from!== (channelJid || DEFAULT_CHANNEL_JID)) return
+        if (m.key.fromMe) return
 
-          const body = m.message?.conversation
-            || m.message?.extendedTextMessage?.text
-            || ''
+        const body = m.message?.conversation
+          || m.message?.extendedTextMessage?.text
+          || ''
 
-          // Auto react to messages
-          if (autoReact && Math.random() > 0.7) {
-            const reactions = ['❤️', '👍', '🔥', '✨', '💯']
-            const reaction = reactions[Math.floor(Math.random() * reactions.length)]
-            try {
-              await sock.sendMessage(from, { react: { text: reaction, key: m.key } })
-              const stats = await db.get('sc_stats') || { reactions: 0 }
-              stats.reactions = (stats.reactions || 0) + 1
-              await db.set('sc_stats', stats)
-            } catch {}
-          }
-
-          // Auto reply to questions
-          if (autoReply && body.match(/\?|how|what|where|when|can|help|deploy|pair|session|railway|render|heroku|vps/i)) {
-            const prompt = `User asked in channel: "${body}". Reply helpfully about Swiftbot. Mention pair.swiftbot.gt.tc if relevant. Keep it 2-3 lines, human-like.`
-            const fallback = generateFallbackContent('question')
-
-            let reply = await askGroq(prompt, fallback, logger)
-            if (!reply.includes('Smart Swiftbot')) {
-              reply += `\n\n${DEFAULT_FOOTER}`
-            }
-
-            // Reply in channel
-            setTimeout(async () => {
-              await sock.sendMessage(from, { text: reply }, { quoted: m })
-              const stats = await db.get('sc_stats') || { replies: 0 }
-              stats.replies = (stats.replies || 0) + 1
-              await db.set('sc_stats', stats)
-            }, 2000 + Math.random() * 3000) // Human-like delay
-          }
+        // Auto react to messages
+        if (autoReact && Math.random() > 0.7) {
+          const reactions = ['❤️', '👍', '🔥', '✨', '💯']
+          const reaction = reactions[Math.floor(Math.random() * reactions.length)]
+          try {
+            await sock.sendMessage(from, { react: { text: reaction, key: m.key } })
+            const stats = await db.get('sc_stats') || { reactions: 0 }
+            stats.reactions = (stats.reactions || 0) + 1
+            await db.set('sc_stats', stats)
+          } catch {}
         }
 
-      } catch (e) {
-        logger.error('SMARTCHANNEL_MSG', 'Error', e.message)
+        // Auto reply to questions
+        if (autoReply && body.match(/\?|how|what|where|when|can|help|deploy|pair|session|railway|render|heroku|vps/i)) {
+          const prompt = `User asked in channel: "${body}". Reply helpfully about Swiftbot. Mention pair.swiftbot.gt.tc if relevant. Keep it 2-3 lines, human-like.`
+          const fallback = generateFallbackContent('question')
+
+          let reply = await askGroq(prompt, db, fallback, logger)
+          if (!reply.includes('Smart Swiftbot')) {
+            reply += `\n\n${DEFAULT_FOOTER}`
+          }
+
+          // Reply in channel
+          setTimeout(async () => {
+            await sock.sendMessage(from, { text: reply }, { quoted: m })
+            const stats = await db.get('sc_stats') || { replies: 0 }
+            stats.replies = (stats.replies || 0) + 1
+            await db.set('sc_stats', stats)
+          }, 2000 + Math.random() * 3000) // Human-like delay
+        }
       }
+
+    } catch (e) {
+      logger.error('SMARTCHANNEL_MSG', 'Error', e.message)
     }
   }
-]
+}
 
-// Initialize on load
+// Initialize on load - call this from index.js after sock is ready
 export const init = (sock, db, logger) => {
   startAutoPosting(sock, db, logger)
   logger.info('SMARTCHANNEL', 'Auto posting scheduler started')
