@@ -121,7 +121,13 @@ async function loadCommands() {
       // Add timestamp to bypass import cache for hot-reload
       const cacheBuster = `${fileUrl}?t=${Date.now()}`
       const module = await import(cacheBuster)
-      const cmd = module.default || module
+      let cmd = module.default || module
+
+      // NEW: Dynamic name/alias support
+      if (cmd.init && typeof cmd.init === 'function') {
+        const dynamic = await cmd.init({ db, categories })
+        cmd = {...cmd,...dynamic }
+      }
 
       if (!validateCommand(cmd, file)) continue
 
