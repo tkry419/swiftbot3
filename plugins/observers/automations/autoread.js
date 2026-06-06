@@ -1,83 +1,61 @@
 /**
- * SwiftBot - plugins/observers/automations/autoread.js
- * AutoRead System - Mark messages as read automatically
- * Scope: global/group/dm with custom message type filters - vs Bot
+ * SwiftBot - plugins/observers/autoread.js
+ * Auto Read Observer - Full Control
+ * Matches autoread.js command settings
+ * Category: Automation
  */
 
 export default {
   name: 'autoread',
   event: 'messages.upsert',
-  desc: 'Auto mark messages as read',
-  category: 'automations',
-  permission: 'all',
+  desc: 'Marks messages as read based on DB settings',
+  category: 'Automation',
+  enabled: true,
 
-  execute: async (sock, update, { db, logger }) => {
+  execute: async (sock, m, { db, logger }) => {
     try {
-      const m = update.messages?.[0]
-      if (!m?.message || m.key.fromMe) return
+      if (m.key.fromMe) return
+      if (!m.message) return
 
       const from = m.key.remoteJid
+      const sender = m.key.participant || from
       const isGroup = from.endsWith('@g.us')
-      const isDM =!isGroup
-      const type = Object.keys(m.message)[0]
 
-      // Get settings
+      // Load all settings from DB
       const [
-        globalEnabled,
-        groupEnabled,
+        readEnabled,
+        groupsWhitelist,
+        usersWhitelist,
         dmEnabled,
-        readAllTypes,
-        readTypes,
-        readStickers,
-        readImages,
-        readVideos,
-        readAudios,
-        readDocuments,
-        readTexts
+        groupsEnabled
       ] = await Promise.all([
-        db.get('autoreadGlobalEnabled'),
-        isGroup? db.getGroupKey(from, 'autoreadEnabled') : null,
-        isDM? db.get('autoreadDmEnabled') : null,
-        db.get('autoreadAllTypes'),
-        db.get('autoreadTypes'),
-        db.get('autoreadStickers'),
-        db.get('autoreadImages'),
-        db.get('autoreadVideos'),
-        db.get('autoreadAudios'),
-        db.get('autoreadDocuments'),
-        db.get('autoreadTexts')
+        db.get('autoread'),
+        db.get('autoreadGroups'),
+        db.get('autoreadUsers'),
+        db.get('autoreadDM'),
+        db.get('autoreadGroupsEnabled')
       ])
 
-      // Check if enabled for this scope
-      let isEnabled = false
+      if (!readEnabled) return
+
+      // 1. DM MODE CHECK
+      if (!isGroup) {
+        if (dmEnabled === false) return
+        if (usersWhitelist?.length > 0 &&!usersWhitelist.includes(sender)) return
+      }
+
+      // 2. GROUP MODE CHECK
       if (isGroup) {
-        isEnabled = groupEnabled === true || (groupEnabled === null && globalEnabled === true)
-      } else if (isDM) {
-        isEnabled = dmEnabled === true || (dmEnabled === null && globalEnabled === true)
+        if (groupsEnabled === false) return
+        if (groupsWhitelist?.length > 0 &&!groupsWhitelist.includes(from)) return
+        if (usersWhitelist?.length > 0 &&!usersWhitelist.includes(sender)) return
       }
 
-      if (!isEnabled) return
-
-      // Check message type filters
-      const allTypesEnabled = readAllTypes!== false // default true
-      if (!allTypesEnabled) {
-        if (type === 'stickerMessage' && readStickers === false) return
-        if (type === 'imageMessage' && readImages === false) return
-        if (type === 'videoMessage' && readVideos === false) return
-        if ((type === 'audioMessage' || type === 'documentWithCaptionMessage') && readAudios === false) return
-        if (type === 'documentMessage' && readDocuments === false) return
-        if ((type === 'conversation' || type === 'extendedTextMessage') && readTexts === false) return
-
-        const allowedTypes = readTypes || []
-        if (allowedTypes.length > 0 &&!allowedTypes.includes(type)) return
-      }
-
-      // Mark as read
+      // Mark message as read
       await sock.readMessages([m.key])
-      logger.info('AUTOREAD', `Marked ${type} as read in ${isGroup? 'group' : 'DM'}`)
 
     } catch (e) {
-      logger.error('AUTOREAD', 'Observer failed', e.message)
+      logger.error('AUTOREAD_OBSERVER', 'Failed to read message', e.message)
     }
   }
 }
