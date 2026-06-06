@@ -1,74 +1,104 @@
 /**
- * SwiftBot - plugins/commands/ai/gpt.js
- * AI Chat using Groq API — Real-time from DB
+ * SwiftBot - plugins/commands/ai/ai.js
+ * Groq AI Chat - Works with router.js
+ * English only - vs Bot
  */
 
+import axios from 'axios'
+
 export default {
-  name: 'gpt',
-  alias: ['ai', 'ask'],
-  desc: 'Ask AI anything using Groq',
-  usage: '<question>',
-  category: 'ai',
+  name: 'ai',
+  alias: ['gpt', 'ask', 'chat'],
+  desc: 'AI chat powered by Groq',
+  usage: 'question or reply',
+  category: 'AI',
   permission: 'all',
 
-  execute: async (sock, m, args, { db, box, fonts, logger, prefix }) => {
+  execute: async (sock, m, args, { db, prefix, nobox, box, isOwner }) => {
     const from = m.key.remoteJid
-    const question = args.join(' ')
+    const msg = m
 
-    if (!question) {
-      const msg = await box.error(`Usage: ${fonts.mono(prefix + 'gpt <question>')}`)
-      return await sock.sendMessage(from, { text: msg }, { quoted: m })
+    const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage
+    const quotedText = quoted?.conversation || quoted?.extendedTextMessage?.text || ''
+
+    let prompt = args.join(' ') || quotedText
+
+    if (!prompt) {
+      const text = `╔═━━━━━━━━━━━━━━━━═❒\n║ Usage:\n║ ${prefix}ai What is Kenya?\n║ ${prefix}ai Explain quantum physics\n║ Reply text ${prefix}ai\n╚━━━━━━━━━━━━━━━━━═❒`
+      return await sock.sendMessage(from, { text }, { quoted: msg })
     }
 
-    // Check if agent enabled
-    const [agentEnabled, apiKey, model, systemPrompt] = await Promise.all([
-      db.get('agentEnabled'),
-      db.get('agentApi'),
-      db.get('agentModel'),
-      db.get('agentSystem')
-    ])
-
-    if (!agentEnabled || !apiKey) {
-      const msg = await box.error('AI is disabled. Owner: use #setagentapi <key> and #agentenable')
-      return await sock.sendMessage(from, { text: msg }, { quoted: m })
+    // Check if Groq API key exists
+    if (!process.env.GROQ_API_KEY) {
+      const text = nobox
+       ? 'GROQ_API_KEY not set in environment'
+        : await box.error('GROQ_API_KEY not set in environment')
+      return await sock.sendMessage(from, { text }, { quoted: msg })
     }
 
-    // React processing
-    await sock.sendMessage(from, { react: { text: '🤖', key: m.key } })
+    await sock.sendMessage(from, {
+      react: { text: '🤖', key: m.key }
+    })
 
     try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: model || 'llama3-70b-8192',
+      // Get bot info from DB
+      const [botName, ownerName, ownerNumber] = await Promise.all([
+        db.get('botName'),
+        db.get('ownerName'),
+        db.get('owner')
+      ])
+
+      const systemPrompt = `You are ${botName || 'SwiftBot'}, a smart WhatsApp assistant created by ${ownerName || 'Owner'}.
+
+Rules:
+1. Answer in the user's language. Match exactly.
+2. Keep replies short, 2-3 lines max unless user asks for details.
+3. Be direct, helpful, and natural.
+4. Never say "As an AI". You are ${botName || 'SwiftBot'}.
+5. If asked who made you: "${ownerName || 'Owner'}"
+6. If asked your number: "${ownerNumber || 'I don\'t have a public number'}"
+7. No disclaimers unless dangerous.`
+
+      const res = await axios.post(
+        'https://api.groq.com/openai/v1/chat/completions',
+        {
+          model: 'llama-3.3-70b-versatile',
           messages: [
-            { role: 'system', content: systemPrompt || 'You are SwiftBot, a helpful WhatsApp assistant.' },
-            { role: 'user', content: question }
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt }
           ],
           temperature: 0.7,
-          max_tokens: 1024
-        })
+          max_tokens: 800
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+          },
+          timeout: 20000
+        }
+      )
+
+      const reply = res.data?.choices?.[0]?.message?.content || 'AI failed to respond'
+
+      await sock.sendMessage(from, { text: reply }, { quoted: msg })
+
+      await sock.sendMessage(from, {
+        react: { text: '✅', key: m.key }
       })
 
-      if (!response.ok) throw new Error(`Groq API: ${response.status}`)
+    } catch (error) {
+      console.log('AI command error:', error.message)
 
-      const data = await response.json()
-      const answer = data.choices[0].message.content
+      await sock.sendMessage(from, {
+        react: { text: '❌', key: m.key }
+      })
 
-      // FIX: box.reply haipo, tumia box.text au direct
-      const msg = await box.text(`*Powered by ${model || 'llama3-70b'}*\n\n${answer}`)
-      await sock.sendMessage(from, { text: msg }, { quoted: m })
-      await sock.sendMessage(from, { react: { text: '✅', key: m.key } })
+      const errorText = nobox
+       ? `AI Error: ${error.response?.data?.error?.message || error.message}`
+        : await box.error(`AI Error: ${error.response?.data?.error?.message || 'Service down'}`)
 
-    } catch (e) {
-      logger.error('GPT', 'API failed', e.message)
-      const msg = await box.error(`AI failed: ${e.message}`)
-      await sock.sendMessage(from, { text: msg }, { quoted: m })
-      await sock.sendMessage(from, { react: { text: '❌', key: m.key } })
+      await sock.sendMessage(from, { text: errorText }, { quoted: msg })
     }
   }
 }
