@@ -374,3 +374,14 @@ export const db = {
     return _store.getAllGroups()
   },
 }
+
+// ─────────────────────────────────────────────
+// GROUP KEY HELPERS - ADDED FOR OBSERVERS
+// ─────────────────────────────────────────────
+export const setGroupKey = async (jid, key, value) => {
+  return await db.setGroup(jid, key, value)
+}
+
+export const getGroupKey = async (jid, key) => {
+  return await db.getGroupKey(jid, key)
+}
