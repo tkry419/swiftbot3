@@ -286,6 +286,7 @@ let _store = null
 
 export async function initDb () {
   const mongoUrl = process.env.MONGO_URL || process.env.MONGODB_URI || null
+  console.log('[DB] Checking MONGO_URL:', mongoUrl? 'Found' : 'Not found') // DEBUG LINE
 
   if (mongoUrl) {
     try {
