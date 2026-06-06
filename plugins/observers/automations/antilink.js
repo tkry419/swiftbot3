@@ -1,112 +1,113 @@
 /**
- * SwiftBot - plugins/observers/automations/antilink.js
- * AntiLink System - Auto delete links + warn + kick
- * Scope: global or per-group - vs Bot
+ * SwiftBot - plugins/observers/antilink.js
+ * Anti Link Observer - Auto Delete/Kick
+ * Matches antilink.js command settings
+ * Category: Automation
  */
 
 export default {
   name: 'antilink',
   event: 'messages.upsert',
-  desc: 'Auto delete links and warn users',
-  category: 'automations',
-  permission: 'all',
+  desc: 'Deletes links and punishes senders based on DB settings',
+  category: 'Automation',
+  enabled: true,
 
-  execute: async (sock, update, { db, logger }) => {
+  execute: async (sock, m, { db, logger, box }) => {
     try {
-      const m = update.messages?.[0]
-      if (!m?.message || m.key.fromMe) return
+      if (m.key.fromMe) return
+      if (!m.message) return
 
       const from = m.key.remoteJid
       const isGroup = from.endsWith('@g.us')
-      if (!isGroup) return
-
-      // Check if antilink enabled globally or for this group
-      const globalEnabled = await db.get('antilinkEnabled') || false
-      const groupEnabled = await db.getGroupKey(from, 'antilinkEnabled')
-
-      // Priority: group setting > global setting
-      const isEnabled = groupEnabled!== null? groupEnabled : globalEnabled
-      if (!isEnabled) return
-
-      // Get message text
-      const body = m.message?.conversation
-        || m.message?.extendedTextMessage?.text
-        || m.message?.imageMessage?.caption
-        || m.message?.videoMessage?.caption
-        || ''
-
-      // Link regex - detects all types
-      const linkRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|t\.me\/[^\s]+|chat\.whatsapp\.com\/[^\s]+|wa\.me\/[^\s]+|discord\.gg\/[^\s]+)/gi
-      if (!linkRegex.test(body)) return
+      if (!isGroup) return // Only works in groups
 
       const sender = m.key.participant || from
-      const botId = sock.user?.id
-      const botClean = botId?.split('@')[0]?.split(':')[0] || ''
+      const body = m.message.conversation
+        || m.message.extendedTextMessage?.text
+        || m.message.imageMessage?.caption
+        || m.message.videoMessage?.caption
+        || ''
 
-      // Don't act on bot or owner
-      const owner = await db.get('owner')
-      if (sender.includes(botClean) || sender.includes(owner)) return
+      if (!body) return
 
-      // Check if sender is admin - admins bypass
+      // Load settings
+      const [
+        antilinkEnabled,
+        actionType,
+        groupsWhitelist,
+        groupsEnabled,
+        userWhitelist,
+        owner
+      ] = await Promise.all([
+        db.get('antilink'),
+        db.get('antilinkAction'),
+        db.get('antilinkGroups'),
+        db.get('antilinkGroupsEnabled'),
+        db.get('antilinkWhitelist'),
+        db.get('owner')
+      ])
+
+      if (!antilinkEnabled) return
+
+      // Check if group is enabled
+      if (groupsEnabled === false) return
+      if (groupsWhitelist?.length > 0 &&!groupsWhitelist.includes(from)) return
+
+      // Check user whitelist + owner + admin
+      const cleanJid = (jid) => jid?.split('@')[0]?.split(':')[0] || ''
+      const senderClean = cleanJid(sender)
+
+      if (userWhitelist?.includes(sender)) return
+      if (senderClean === owner) return
+
+      // Check if sender is admin
       try {
         const metadata = await sock.groupMetadata(from)
-        const participant = metadata.participants.find(p => p.id === sender)
-        const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin'
-        if (isAdmin) return
+        const participant = metadata.participants.find(p => cleanJid(p.id) === senderClean)
+        if (participant?.admin) return
+      } catch {}
+
+      // Link regex - detects URLs
+      const linkRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(t\.me\/[^\s]+)|(chat\.whatsapp\.com\/[^\s]+)|(wa\.me\/[^\s]+)/gi
+
+      if (!linkRegex.test(body)) return
+
+      // Link detected - take action
+      const punishment = actionType || 'delete'
+
+      // 1. Delete message
+      try {
+        await sock.sendMessage(from, { delete: m.key })
       } catch (e) {
-        logger.warn('ANTILINK', 'Failed to check admin', e.message)
+        logger.error('ANTILINK', 'Failed to delete message', e.message)
       }
 
-      // Check whitelist
-      const globalWhitelist = await db.get('antilinkWhitelist') || []
-      const groupWhitelist = await db.getGroupKey(from, 'antilinkWhitelist') || []
-      const whitelist = [...globalWhitelist,...groupWhitelist]
-
-      const hasWhitelistedLink = whitelist.some(domain => body.toLowerCase().includes(domain.toLowerCase()))
-      if (hasWhitelistedLink) return
-
-      // Delete message
-      await sock.sendMessage(from, { delete: m.key })
-
-      // Get warn settings
-      const maxWarns = await db.getGroupKey(from, 'antilinkMaxWarns') || await db.get('antilinkMaxWarns') || 3
-      const warnKey = `antilink_warns_${from}_${sender}`
-      const currentWarns = await db.get(warnKey) || 0
-      const newWarns = currentWarns + 1
-
-      await db.set(warnKey, newWarns)
-
-      // Get group metadata for name
-      const groupMetadata = await sock.groupMetadata(from)
-      const groupName = groupMetadata.subject
-
-      if (newWarns >= maxWarns) {
-        // Kick user
-        try {
-          await sock.groupParticipantsUpdate(from, [sender], 'remove')
-          await sock.sendMessage(from, {
-            text: `🚫 @${sender.split('@')[0]} kicked from ${groupName}\nReason: Sent links ${maxWarns}/${maxWarns} times`,
-            mentions: [sender]
-          })
-          await db.set(warnKey, 0) // Reset warns
-          logger.warn('ANTILINK', `Kicked ${sender} from ${from} for links`)
-        } catch (e) {
-          await sock.sendMessage(from, {
-            text: `⚠️ Cannot kick @${sender.split('@')[0]} - Bot needs admin rights`,
-            mentions: [sender]
-          })
-        }
-      } else {
-        // Warn user
+      // 2. Take punishment action
+      if (punishment === 'warn') {
         await sock.sendMessage(from, {
-          text: `⚠️ @${sender.split('@')[0]} Links not allowed!\nWarning: ${newWarns}/${maxWarns}\n${maxWarns - newWarns} more = kick`,
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ⚠️ @${senderClean} LINK DETECTED\n║ Links not allowed here\n╚━━━━━━━━━━━━━━━━━═❒`,
           mentions: [sender]
-        }, { quoted: m })
-        logger.info('ANTILINK', `Warned ${sender} in ${from} - ${newWarns}/${maxWarns}`)
+        })
+      }
+
+      if (punishment === 'kick') {
+        await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🔗 @${senderClean} SENT LINK\n║ User will be removed\n╚━━━━━━━━━━━━━━━━━═❒`,
+          mentions: [sender]
+        })
+
+        // Kick user
+        setTimeout(async () => {
+          try {
+            await sock.groupParticipantsUpdate(from, [sender], 'remove')
+          } catch (e) {
+            logger.error('ANTILINK', 'Failed to kick user', e.message)
+          }
+        }, 2000)
       }
 
     } catch (e) {
-      logger.error('ANTILINK', 'Observer failed', e.message)
+      logger.error('ANTILINK_OBSERVER', 'Failed to process', e.message)
     }
   }
 }
