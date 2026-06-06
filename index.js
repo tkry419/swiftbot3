@@ -5,6 +5,7 @@
  * Fixed for Render + no port errors
  */
 
+import 'dotenv/config' // ADDED: Load.env file first
 import express from 'express' // ADDED: For Render port binding
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } from '@whiskeysockets/baileys'
 import pino from 'pino'
@@ -130,7 +131,7 @@ async function sendConnectedMsg(sock) {
     const mins = Math.floor((uptime % 3600) / 60)
     const secs = Math.floor(uptime % 60)
     const mem = process.memoryUsage()
-    const used = (mem.heapUsed / 1024 / 1024).toFixed(1)
+    const used = (mem.heapUsed / 1024).toFixed(1)
     const total = (mem.heapTotal / 1024 / 1024).toFixed(1)
     const ramPercent = Math.floor((mem.heapUsed / mem.heapTotal) * 100)
 
@@ -226,6 +227,7 @@ async function startBot() {
     await new Promise(r => setTimeout(r, 2000))
   }
 
+  console.log('[ENV] MONGO_URL exists:',!!process.env.MONGO_URL) // ADDED: Debug log
   await initDb()
   logger.success('DB', `Database mode: ${db.mode}`)
 
@@ -250,7 +252,7 @@ async function startBot() {
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
     browser: Browsers.ubuntu('Chrome'),
-    markOnlineOnConnect: false,
+    markOnlineOnConnect: true,
     syncFullHistory: false,
     generateHighQualityLinkPreview: false,
     defaultQueryTimeoutMs: 60000,
