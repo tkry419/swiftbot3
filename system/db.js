@@ -2,12 +2,14 @@
  * SwiftBot - system/db.js
  * Auto-detects MongoDB or falls back to RAM mode
  * All settings are real-time — no restart needed
+ * FULLY ADAPTIVE - accepts any DB keys
  */
 
 import { MongoClient } from 'mongodb'
 
 // ─────────────────────────────────────────────
 // DEFAULT SETTINGS — All changeable at runtime
+// Only for fallback values, NOT restrictions
 // ─────────────────────────────────────────────
 export const DEFAULTS = {
   // Bot identity
@@ -80,8 +82,9 @@ class RamStore {
     this._users = new Map()
   }
 
+  // FIX 1: get() - return null if not found, don't force DEFAULTS
   async get (key) {
-    return this._data[key]?? DEFAULTS[key]?? null
+    return this._data.hasOwnProperty(key)? this._data[key] : null
   }
 
   async set (key, value) {
@@ -178,9 +181,10 @@ class MongoStore {
     }
   }
 
+  // FIX 2: get() - return null if not found, don't force DEFAULTS
   async get (key) {
     const doc = await this._settings.findOne({ key })
-    return doc? doc.value : (DEFAULTS[key]?? null)
+    return doc? doc.value : null
   }
 
   async set (key, value) {
@@ -199,7 +203,7 @@ class MongoStore {
 
   async getAll () {
     const docs = await this._settings.find({}).toArray()
-    const result = {...DEFAULTS }
+    const result = {}
     for (const doc of docs) result[doc.key] = doc.value
     return result
   }
@@ -374,6 +378,12 @@ export const db = {
   async getAllGroups () {
     return _store.getAllGroups()
   },
+
+  // FIX 3: Add helper for defaults with fallback
+  async getWithDefault (key, defaultValue = null) {
+    const value = await this.get(key)
+    return value!== null? value : defaultValue
+  }
 }
 
 // ─────────────────────────────────────────────
