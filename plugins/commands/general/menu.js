@@ -62,7 +62,7 @@ export default {
 
     // ALL CATEGORIES + COMMANDS - KUSHUKA DESIGN
     const categories = getAllCategories()
-    
+
     for (const cat of categories) {
       const cmds = getCategoryCommands(cat.name)
       if (!cmds.length) continue
@@ -71,10 +71,9 @@ export default {
 ╔═━━━━━━━━━━━━━━━━═❒
 ║ ⌬ *${cat.name.toUpperCase()} MENU* ⌬
 `
-      // Commands zote za category hii
+      // Commands zote za category hii - NAME ONLY
       cmds.forEach(cmd => {
-        const usage = cmd.usage? ` ${cmd.usage}` : ''
-        msg += `║ 𖠁 .${cmd.name}${usage}\n`
+        msg += `║ 𖠁 .${cmd.name}\n`
       })
 
       msg += `╚━━━━━━━━━━━━━━━━━═❒`
