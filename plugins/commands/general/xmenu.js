@@ -1,8 +1,11 @@
 /**
  * SwiftBot - plugins/commands/misc/xmenu.js
  * 100% Dynamic Menu System - Auto detects all categories
- * xmenu shows all category menus, videomenu shows video commands, etc
+ * Clean bullet design - no numbers
  */
+
+// Hifadhi categories hapa kutoka init()
+let CATEGORIES = new Map()
 
 export default {
   name: 'xmenu',
@@ -14,17 +17,21 @@ export default {
 
   // Generate aliases for all categories dynamically
   init: async ({ db, categories }) => {
+    // Save categories kwa execute
+    CATEGORIES = categories
+
     const aliases = []
     for (const [categoryName] of categories) {
       const cat = categoryName.toLowerCase()
-      if (cat!== 'misc') aliases.push(`${cat}menu`)
+      if (cat!== 'misc' && cat!== 'general') aliases.push(`${cat}menu`)
     }
     return { alias: aliases }
   },
 
-  execute: async (sock, m, args, { db, prefix, nobox, box, categories }) => {
+  execute: async (sock, m, args, { db, prefix, nobox, box }) => {
     const from = m.key.remoteJid
     const msg = m
+    const categories = CATEGORIES // Tumia categories kutoka init
 
     const body = m.message?.conversation || m.message?.extendedTextMessage?.text || ''
     const usedCommand = body.slice(prefix.length).trim().split(' ')[0].toLowerCase()
@@ -32,13 +39,13 @@ export default {
     // If user types #xmenu - show all available category menus
     if (usedCommand === 'xmenu') {
       const catList = Array.from(categories.entries())
-       .filter(([name]) => name.toLowerCase()!== 'misc')
-       .map(([name, data], i) => `║ ${i + 1}. ${prefix}${name.toLowerCase()}menu\n║ └ ${data.commands.length} commands`)
-       .join('\n║ \n')
+     .filter(([name]) => name.toLowerCase()!== 'misc' && name.toLowerCase()!== 'general')
+     .map(([name, data]) => `║ ❒ ${prefix}${name.toLowerCase()}menu\n║ ${data.commands.length} commands`)
+     .join('\n║\n')
 
       const text = nobox
-  ? `AVAILABLE MENUS\n\n${Array.from(categories.keys()).filter(c => c.toLowerCase()!== 'misc').map((c, i) => `${i + 1}. ${prefix}${c.toLowerCase()}menu`).join('\n')}\n\nUse any menu to see commands`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ CATEGORY MENUS\n║ \n${catList}\n║ \n║ Use any menu to see commands\n╚━━━━━━━━━━━━━━━━━═❒`
+     ? `CATEGORY MENUS\n\n${Array.from(categories.keys()).filter(c => c.toLowerCase()!== 'misc' && c.toLowerCase()!== 'general').map((c) => `• ${prefix}${c.toLowerCase()}menu`).join('\n')}\n\nUse any menu to see commands`
+        : `╔═━━━━━━━━━━━━━━━━═❒\n║ CATEGORY MENUS\n╠═══════════════════\n${catList}\n╠═══════════════════\n║ Use any menu above\n╚━━━━━━━━━━━━━━━━━═❒`
 
       return await sock.sendMessage(from, { text }, { quoted: msg })
     }
@@ -62,10 +69,10 @@ export default {
     }
 
     if (!finalCategory) {
-      const availableCats = Array.from(categories.keys()).filter(c => c.toLowerCase()!== 'misc').join(', ')
+      const availableCats = Array.from(categories.keys()).filter(c => c.toLowerCase()!== 'misc' && c.toLowerCase()!== 'general').join(', ')
       return await sock.sendMessage(from, {
         text: nobox
-   ? `Category not found\nAvailable: ${availableCats}`
+       ? `Category not found\nAvailable: ${availableCats}`
           : await box.error(`Category not found\nAvailable: ${availableCats}`)
       }, { quoted: msg })
     }
@@ -75,18 +82,19 @@ export default {
     if (!categoryData || categoryData.commands.length === 0) {
       return await sock.sendMessage(from, {
         text: nobox
-   ? `Category "${finalCategory}" is empty`
+       ? `Category "${finalCategory}" is empty`
           : await box.error(`Category "${finalCategory}" is empty`)
       }, { quoted: msg })
     }
 
+    // BULLET DESIGN - HAKUNA NAMBA
     const cmdList = categoryData.commands
-  .map((c, i) => `║ ${i + 1}. ${prefix}${c.name} ${c.usage || ''}\n║ └ ${c.desc || 'No description'}`)
-  .join('\n║ \n')
+   .map((c) => `║ • ${prefix}${c.name}`)
+   .join('\n')
 
     const text = nobox
-? `${categoryData.name.toUpperCase()} MENU\n\n${categoryData.commands.map((c, i) => `${i + 1}. ${prefix}${c.name} - ${c.desc}`).join('\n')}\n\nTotal: ${categoryData.commands.length} commands`
-      : `╔═━━━━━━━━━━━━━━━━═❒\n║ ${categoryData.name.toUpperCase()} MENU\n║ \n${cmdList}\n║ \n║ Total: ${categoryData.commands.length} commands\n╚━━━━━━━━━━━━━━━━━═❒`
+   ? `${categoryData.name.toUpperCase()} MENU\n\n${categoryData.commands.map((c) => `• ${prefix}${c.name}`).join('\n')}\n\nTotal: ${categoryData.commands.length} commands`
+      : `╔═━━━━━━━━━━━━━━━━═❒\n║ ${categoryData.name.toUpperCase()}\n╠═══════════════════\n${cmdList}\n╠═══════════════════\n║ Total: ${categoryData.commands.length} commands\n╚━━━━━━━━━━━━━━━━━═❒`
 
     await sock.sendMessage(from, { text }, { quoted: msg })
   }
