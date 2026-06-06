@@ -1,61 +1,69 @@
+/**
+ * SwiftBot - plugins/commands/general/ping.js
+ * Ping with hardcoded boxes - NO nobox option
+ * Real ping measurement - NO animation delay included
+ */
+
 export default {
   name: 'ping',
   alias: ['p', 'speed'],
-  desc: 'Check bot response speed with animation',
+  desc: 'Check bot response speed',
   usage: '',
   category: 'general',
   permission: 'all',
 
-  execute: async (sock, m, args, { db, box, fonts, nobox }) => {
+  execute: async (sock, m, args, { db }) => {
     const from = m.key.remoteJid
+
+    // STEP 1: Pima ping halisi kwanza - bila animation
     const start = Date.now()
-
-    // STEP 1: Send initial message
-    let msg = await sock.sendMessage(from, {
-      text: nobox? 'Pinging...' : await box.info('PING', 'Pinging...')
-    }, { quoted: m })
-
-    // STEP 2: Animation frames
-    const frames = ['▱▱▱▱▱ 0%', '▰▱▱ 20%', '▰▰▱▱▱ 40%', '▰▰▰▱▱ 60%', '▰▰▰▰▱ 80%', '▰▰▰▰▰ 100%']
-
-    for (let i = 0; i < frames.length - 1; i++) {
-      await new Promise(r => setTimeout(r, 300))
-      const editText = nobox
-      ? `Pinging...\n${frames[i]}`
-        : await box.info('PING', `Pinging...\n${frames[i]}`)
-
-      await sock.sendMessage(from, {
-        text: editText,
-        edit: msg.key
-      })
-    }
-
-    // STEP 3: Final result with speed
+    let msg = await sock.sendMessage(from, { text: 'Pinging...' }, { quoted: m })
     const latency = Date.now() - start
-    let speed = 'Slow 🐌'
-    let bar = '▰▱▱▱▱'
 
-    if (latency < 100) {
+    // STEP 2: Tengeneza bars mpya simple + status
+    let speed = 'Ultra Fast ⚡'
+    let bar = '▣▣▣'
+
+    if (latency < 80) {
       speed = 'Ultra Fast ⚡'
-      bar = '▰▰▰'
-    } else if (latency < 300) {
+      bar = '▣▣▣'
+    } else if (latency < 200) {
       speed = 'Fast 🚀'
-      bar = '▰▰▰▰▱'
-    } else if (latency < 600) {
+      bar = '▣▣▣▣□'
+    } else if (latency < 500) {
       speed = 'Good ✨'
-      bar = '▰▰▰▱▱'
+      bar = '▣▣▣□□'
     } else if (latency < 1000) {
       speed = 'Normal 💫'
-      bar = '▰▰▱▱▱'
+      bar = '▣▣□□□'
+    } else {
+      speed = 'High 📡'
+      bar = '▣□□□□'
     }
 
-    const finalText = nobox
-    ? `Pong! 🏓\n\nSpeed: ${latency}ms\nStatus: ${speed}\n${bar} 100%`
-      : await box.success(`Pong! 🏓\n\nSpeed: ${latency}ms\nStatus: ${speed}\n${bar} 100%`)
+    // STEP 3: Tengeneza caption hardcoded - IMPERIAL STYLE
+    const [botname, prefix, version] = await Promise.all([
+      db.get('botname'),
+      db.get('prefix'),
+      db.get('version')
+    ])
 
-    // EDIT final message - no delete
+    const caption = `
+╔═━━━━━━━━━━━━━━━━═❒
+║    ${botname.toUpperCase()} v${version || '3.2.0'}
+╚━━━━━━━━━━━━━━━━━═❒
+╔═━━━━━━━━━━━━━━━━═❒
+║ ⌬ *PONG* ⌬
+║ 𖠁 *𝖘𝖕𝖊𝖉:* ${latency} Ms
+║ 𖠁 *𝕾𝖙𝖆𝖙𝖚𝖘:* ${speed}
+║ 𖠁 *𝕽𝖆𝖒:* ${bar}
+║ 𖠁 Type ${prefix}menu for commands
+╚━━━━━━━━━━━━━━━━━═❒
+`
+
+    // STEP 4: Edit message ya kwanza na result - ping halisi
     await sock.sendMessage(from, {
-      text: finalText,
+      text: caption,
       edit: msg.key
     })
   }
