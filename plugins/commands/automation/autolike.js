@@ -1,205 +1,140 @@
 /**
- * SwiftBot - plugins/commands/automations/autolikestatus.js
- * AutoLikeStatus Control Panel
- * Controls the autolikestatus observer in plugins/observers/autolikestatus.js
+ * SwiftBot - plugins/commands/automation/autolikestatus.js
+ * Auto Like Status Manager - Full Control
+ * Set targets, mode - Owner only
  */
 
 export default {
   name: 'autolikestatus',
-  desc: 'Control autolikestatus system',
-  usage: 'autolikestatus on/off/contacts/emoji/type/reset',
-  category: 'automations',
-  permission: 'admin',
-  alias: ['autolike', 'als'],
+  alias: ['alikestatus', 'autolike', 'likestatus', 'als'],
+  desc: 'Control auto like status globally or per target',
+  usage: '[on/off/status] [global/all/specific] [number]',
+  category: 'Automation',
+  permission: 'owner',
 
-  execute: async (sock, m, args, { db, prefix, nobox, box }) => {
+  execute: async (sock, m, args, { db, prefix, isOwner }) => {
     const from = m.key.remoteJid
-    const msg = m
+
+    if (!isOwner) {
+      return await sock.sendMessage(from, {
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Owner only command\n╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
+    }
+
     const action = args[0]?.toLowerCase()
+    const target = args[1]?.toLowerCase()
+    const value = args[2]
 
-    const DEFAULT_EMOJIS = [
-      '❤️','🔥','💯','👍','😂','😍','🤔','👏','💀','⚡',
-      '✨','🌟','🎯','🚀','💎','👑','🌈','🎉','💪','🙏',
-      '😎','🥳','🤩','😇','🤗','😘','🤫','🤐','🤑','🤠',
-      '👻','👽','🤖','😺','🐶','🦁','🐯','🦄','🐸','🍕',
-      '🍔','🍟','🌮','🍩','🍪','🍭','🍯','🧃','☕','🥰'
-    ]
-
-    // ─── STATUS PANEL (no args) ──────────────────
-    if (!action) {
+    // STATUS
+    if (!action || action === 'status' || action === 'info') {
       const [
-        enabled, contactsOnly, emojis,
-        likeImages, likeVideos, likeTexts
+        likeStatus, users, allEnabled
       ] = await Promise.all([
-        db.get('autolikestatusEnabled'),
-        db.get('autolikestatusContactsOnly'),
-        db.get('autolikestatusEmojis'),
-        db.get('autolikestatusImages'),
-        db.get('autolikestatusVideos'),
-        db.get('autolikestatusTexts')
+        db.get('autolikestatus'),
+        db.get('autolikestatusUsers'),
+        db.get('autolikestatusAll')
       ])
 
-      const statusText =
-        `Status   : ${enabled ? 'ON ✅' : 'OFF ❌'}\n` +
-        `Scope    : ${contactsOnly ? 'Contacts Only' : 'Everyone'}\n` +
-        `Images   : ${likeImages !== false ? 'ON' : 'OFF'}\n` +
-        `Videos   : ${likeVideos !== false ? 'ON' : 'OFF'}\n` +
-        `Texts    : ${likeTexts  !== false ? 'ON' : 'OFF'}\n` +
-        `Emojis   : ${(emojis?.length) || 50} keys`
-
-      const usage =
-        `${prefix}autolikestatus on/off\n` +
-        `${prefix}autolikestatus contacts on/off\n` +
-        `${prefix}autolikestatus type image/video/text on/off\n` +
-        `${prefix}autolikestatus emoji add <emoji>\n` +
-        `${prefix}autolikestatus emoji del <emoji>\n` +
-        `${prefix}autolikestatus emoji list\n` +
-        `${prefix}autolikestatus emoji reset\n` +
-        `${prefix}autolikestatus reset`
-
-      const text = nobox
-        ? `AutoLikeStatus Control\n\n${statusText}\n\nUsage:\n${usage}`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ AUTOLIKESTATUS CONTROL\n║ \n║ ${statusText.replace(/\n/g, '\n║ ')}\n║ \n║ Usage:\n║ ${usage.replace(/\n/g, '\n║ ')}\n╚━━━━━━━━━━━━━━━━━═❒`
-
-      return await sock.sendMessage(from, { text }, { quoted: msg })
-    }
-
-    // ─── ON ──────────────────────────────────────
-    if (action === 'on') {
-      await db.set('autolikestatusEnabled', true)
-      return await sock.sendMessage(from, {
-        text: nobox ? 'AutoLikeStatus enabled ✅' : await box.success('AutoLikeStatus enabled')
-      }, { quoted: msg })
-    }
-
-    // ─── OFF ─────────────────────────────────────
-    if (action === 'off') {
-      await db.set('autolikestatusEnabled', false)
-      return await sock.sendMessage(from, {
-        text: nobox ? 'AutoLikeStatus disabled ❌' : await box.success('AutoLikeStatus disabled')
-      }, { quoted: msg })
-    }
-
-    // ─── CONTACTS FILTER ─────────────────────────
-    if (action === 'contacts') {
-      const sub = args[1]?.toLowerCase()
-      if (sub === 'on') {
-        await db.set('autolikestatusContactsOnly', true)
-        return await sock.sendMessage(from, {
-          text: nobox ? 'AutoLikeStatus set to contacts only' : await box.success('Set to contacts only')
-        }, { quoted: msg })
-      }
-      if (sub === 'off') {
-        await db.set('autolikestatusContactsOnly', false)
-        return await sock.sendMessage(from, {
-          text: nobox ? 'AutoLikeStatus set to everyone' : await box.success('Set to everyone')
-        }, { quoted: msg })
-      }
-      return await sock.sendMessage(from, {
-        text: nobox ? 'Use: contacts on/off' : await box.error('Use: contacts on/off')
-      }, { quoted: msg })
-    }
-
-    // ─── TYPE TOGGLE ─────────────────────────────
-    if (action === 'type') {
-      const msgType = args[1]?.toLowerCase()
-      const toggle  = args[2]?.toLowerCase()
-
-      const typeMap = {
-        image : 'autolikestatusImages',
-        video : 'autolikestatusVideos',
-        text  : 'autolikestatusTexts'
-      }
-
-      const dbKey = typeMap[msgType]
-      if (!dbKey) {
-        return await sock.sendMessage(from, {
-          text: nobox ? 'Types: image / video / text' : await box.error('Types: image / video / text')
-        }, { quoted: msg })
-      }
-
-      if (toggle === 'on' || toggle === 'off') {
-        await db.set(dbKey, toggle === 'on')
-        return await sock.sendMessage(from, {
-          text: nobox
-            ? `AutoLikeStatus ${msgType}: ${toggle.toUpperCase()}`
-            : await box.success(`AutoLikeStatus ${msgType}: ${toggle.toUpperCase()}`)
-        }, { quoted: msg })
-      }
+      const userList = users?.length? users.map(u => u.split('@')[0]).join(', ') : 'None'
 
       return await sock.sendMessage(from, {
-        text: nobox ? `Use: type ${msgType} on/off` : await box.error(`Use: type ${msgType} on/off`)
-      }, { quoted: msg })
+        text: `╔═━━━━━━━━━━━━━━━━═❒
+║ ❤️ AUTO LIKE STATUS
+╠═══════════════════
+║ Like Status: ${likeStatus? '🟢 ON' : '🔴 OFF'}
+║
+║ 📍 TARGETS:
+║ All Contacts: ${allEnabled!== false? '✅ ON' : '❌ OFF'}
+║ Specific Users: ${users?.length || 0}
+║ ${users?.length? '𖠁 ' + userList : ''}
+╠═══════════════════
+║ 📝 USAGE:
+║ ${prefix}als on global
+║ ${prefix}als on all
+║ ${prefix}als on user 255712345678
+║ ${prefix}als off global
+║ ${prefix}als add user 255xxx
+║ ${prefix}als del user 255xxx
+║ ${prefix}als clear
+╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
     }
 
-    // ─── EMOJI CONTROL ───────────────────────────
-    if (action === 'emoji') {
-      const sub   = args[1]?.toLowerCase()
-      const emoji = args[2]
+    // ON / OFF
+    if (action === 'on' || action === 'enable') {
+      if (!target || target === 'global' || target === 'all') {
+        await db.set('autolikestatus', true)
+        await db.set('autolikestatusAll', true)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Like Status Enabled\n║ Mode: GLOBAL\n║ Target: All Status\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
 
-      // ADD
-      if (sub === 'add') {
-        if (!emoji) return await sock.sendMessage(from, { text: 'Provide an emoji' }, { quoted: msg })
-        const list = await db.get('autolikestatusEmojis') || [...DEFAULT_EMOJIS]
-        if (!list.includes(emoji)) {
-          list.push(emoji)
-          await db.set('autolikestatusEmojis', list)
+      if (target === 'user') {
+        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
+        const users = await db.get('autolikestatusUsers') || []
+        if (!users.includes(userJid)) {
+          users.push(userJid)
+          await db.set('autolikestatusUsers', users)
         }
+        await db.set('autolikestatus', true)
+        await db.set('autolikestatusAll', false)
         return await sock.sendMessage(from, {
-          text: nobox ? `Added ${emoji} (total: ${list.length})` : await box.success(`Added ${emoji} ─ total: ${list.length}`)
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Like Status Enabled\n║ Target: ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
-
-      // DEL
-      if (sub === 'del') {
-        if (!emoji) return await sock.sendMessage(from, { text: 'Provide an emoji to remove' }, { quoted: msg })
-        const list = await db.get('autolikestatusEmojis') || [...DEFAULT_EMOJIS]
-        const newList = list.filter(e => e !== emoji)
-        await db.set('autolikestatusEmojis', newList)
-        return await sock.sendMessage(from, {
-          text: nobox ? `Removed ${emoji} (total: ${newList.length})` : await box.success(`Removed ${emoji} ─ total: ${newList.length}`)
-        }, { quoted: msg })
-      }
-
-      // LIST
-      if (sub === 'list') {
-        const list = await db.get('autolikestatusEmojis') || DEFAULT_EMOJIS
-        return await sock.sendMessage(from, {
-          text: `Like Emojis (${list.length}):\n${list.join('  ')}`
-        }, { quoted: msg })
-      }
-
-      // RESET
-      if (sub === 'reset') {
-        await db.set('autolikestatusEmojis', [...DEFAULT_EMOJIS])
-        return await sock.sendMessage(from, {
-          text: nobox ? 'Reset to 50 default emojis ✅' : await box.success('Reset to 50 default emojis')
-        }, { quoted: msg })
-      }
-
-      return await sock.sendMessage(from, {
-        text: nobox ? 'Use: emoji add/del/list/reset' : await box.error('Use: emoji add/del/list/reset')
-      }, { quoted: msg })
     }
 
-    // ─── RESET ALL ───────────────────────────────
-    if (action === 'reset') {
-      await Promise.all([
-        db.set('autolikestatusEnabled',      false),
-        db.set('autolikestatusContactsOnly', false),
-        db.set('autolikestatusImages',       true),
-        db.set('autolikestatusVideos',       true),
-        db.set('autolikestatusTexts',        true),
-        db.set('autolikestatusEmojis',       [...DEFAULT_EMOJIS])
-      ])
-      return await sock.sendMessage(from, {
-        text: nobox ? 'AutoLikeStatus reset to defaults ✅' : await box.success('AutoLikeStatus reset to defaults')
-      }, { quoted: msg })
+    // OFF / DISABLE
+    if (action === 'off' || action === 'disable') {
+      if (!target || target === 'global' || target === 'all') {
+        await db.set('autolikestatus', false)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Auto Like Status Disabled\n║ Mode: GLOBAL OFF\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
     }
 
-    // ─── UNKNOWN ─────────────────────────────────
+    // ADD
+    if (action === 'add') {
+      if (target === 'user') {
+        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
+        const users = await db.get('autolikestatusUsers') || []
+        if (!users.includes(userJid)) {
+          users.push(userJid)
+          await db.set('autolikestatusUsers', users)
+        }
+        await db.set('autolikestatusAll', false)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ User Added\n║ ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+    }
+
+    // DEL / REMOVE
+    if (action === 'del' || action === 'remove' || action === 'delete') {
+      if (target === 'user') {
+        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
+        let users = await db.get('autolikestatusUsers') || []
+        users = users.filter(u => u!== userJid)
+        await db.set('autolikestatusUsers', users)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ User Removed\n║ ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+    }
+
+    // CLEAR ALL
+    if (action === 'clear' || action === 'reset') {
+      await db.set('autolikestatusUsers', [])
+      return await sock.sendMessage(from, {
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ All Targets Cleared\n║ Whitelist reset\n╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
+    }
+
+    // INVALID
     await sock.sendMessage(from, {
-      text: nobox ? 'Unknown action. Use: on/off/contacts/type/emoji/reset' : await box.error('Unknown action. Use: on/off/contacts/type/emoji/reset')
-    }, { quoted: msg })
+      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Invalid command\n║ Use: ${prefix}als status\n╚━━━━━━━━━━━━━━━━━═❒`
+    }, { quoted: m })
   }
 }
