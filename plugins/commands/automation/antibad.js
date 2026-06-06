@@ -1,230 +1,217 @@
 /**
- * SwiftBot - plugins/commands/automations/antibadword.js
- * AntiBadWord Control Panel - Full customization
+ * SwiftBot - plugins/commands/automation/antibadwords.js
+ * Anti Bad Words Manager - Full Control
+ * Delete bad words, warn, kick - Owner only
  */
 
 export default {
-  name: 'antibadword',
-  desc: 'Control antibadword system',
-  usage: 'antibadword on/off/global/dm/add/del/list/setwarn/resetwarn/reset',
-  category: 'automations',
-  permission: 'admin',
-  alias: ['abw', 'badword'],
+  name: 'antibadwords',
+  alias: ['nobadwords', 'antimatusi', 'nowords', 'abw'],
+  desc: 'Control anti bad words protection in groups',
+  usage: '[on/off/status] [global/group] [action]',
+  category: 'Automation',
+  permission: 'owner',
 
-  execute: async (sock, m, args, { db, prefix, nobox, box }) => {
+  execute: async (sock, m, args, { db, prefix, isOwner, isGroup }) => {
     const from = m.key.remoteJid
-    const msg = m
-    const isGroup = from.endsWith('@g.us')
-    const isDM =!isGroup
-    const action = args[0]?.toLowerCase()
 
-    if (!action) {
+    if (!isOwner) {
+      return await sock.sendMessage(from, {
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Owner only command\n╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
+    }
+
+    const action = args[0]?.toLowerCase()
+    const target = args[1]?.toLowerCase()
+    const value = args.slice(2).join(' ')
+
+    // STATUS
+    if (!action || action === 'status' || action === 'info') {
       const [
-        globalEnabled, groupEnabled, dmEnabled, maxWarns,
-        globalWords, groupWords, dmWords
+        antibad, action_type, groups, groupsEnabled,
+        whitelist, wordlist
       ] = await Promise.all([
-        db.get('antibadwordGlobalEnabled'),
-        isGroup? db.getGroupKey(from, 'antibadwordEnabled') : null,
-        db.get('antibadwordDmEnabled'),
-        isGroup? db.getGroupKey(from, 'antibadwordMaxWarns') : await db.get('antibadwordMaxWarns'),
-        db.get('antibadwordGlobalList'),
-        isGroup? db.getGroupKey(from, 'antibadwordList') : null,
-        isDM? db.get('antibadwordDmList') : null
+        db.get('antibadwords'),
+        db.get('antibadwordsAction'),
+        db.get('antibadwordsGroups'),
+        db.get('antibadwordsGroupsEnabled'),
+        db.get('antibadwordsWhitelist'),
+        db.get('antibadwordsList')
       ])
 
-      const wordCount = isGroup
-       ? (groupWords?.length || globalWords?.length || 0)
-        : isDM
-         ? (dmWords?.length || globalWords?.length || 0)
-          : (globalWords?.length || 0)
+      const groupList = groups?.length? groups.map(g => g.split('@')[0]).join(', ') : 'None'
+      const whitelistList = whitelist?.length? whitelist.map(u => u.split('@')[0]).join(', ') : 'None'
+      const wordsCount = wordlist?.length || 0
 
-      const statusText = `Global: ${globalEnabled? 'ON' : 'OFF'}\n` +
-        (isGroup? `Group: ${groupEnabled === true? 'ON' : groupEnabled === false? 'OFF' : 'INHERIT'}\n` : '') +
-        `DM: ${dmEnabled? 'ON' : 'OFF'}\n` +
-        `Max Warns: ${maxWarns || 3}\n` +
-        `Bad Words: ${wordCount} words`
-
-      const text = nobox
-? `AntiBadWord Control\n\nStatus:\n${statusText}\n\nUsage:\n${prefix}antibadword on - Enable for this scope\n${prefix}antibadword off - Disable for this scope\n${prefix}antibadword global on - Enable globally\n${prefix}antibadword dm on - Enable for DMs\n${prefix}antibadword add word - Add bad word\n${prefix}antibadword del word - Delete bad word\n${prefix}antibadword list - List all words\n${prefix}antibadword setwarn 5 - Set max warns\n${prefix}antibadword resetwarn @user - Reset warns\n${prefix}antibadword reset - Reset all`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ ANTIBADWORD CONTROL\n║ \n║ ${statusText.replace(/\n/g, '\n║ ')}\n║ \n║ Usage:\n║ ${prefix}antibadword on/off\n║ ${prefix}antibadword global on/off\n║ ${prefix}antibadword dm on/off\n║ ${prefix}antibadword add word\n║ ${prefix}antibadword del word\n║ ${prefix}antibadword list\n║ ${prefix}antibadword setwarn 5\n║ ${prefix}antibadword resetwarn @user\n║ ${prefix}antibadword reset\n╚━━━━━━━━━━━━━━━━━═❒`
-
-      return await sock.sendMessage(from, { text }, { quoted: msg })
+      return await sock.sendMessage(from, {
+        text: `╔═━━━━━━━━━━━━━━━━═❒
+║ 🤬 ANTI BAD WORDS STATUS
+╠═══════════════════
+║ Status: ${antibad? '🟢 ON' : '🔴 OFF'}
+║ Action: ${action_type || 'delete'}
+║ Words: ${wordsCount}
+║
+║ 📍 TARGETS:
+║ All Groups: ${groupsEnabled!== false? '✅ ON' : '❌ OFF'}
+║ Specific Groups: ${groups?.length || 0}
+║ ${groups?.length? '𖠁 ' + groupList : ''}
+║ Whitelisted Users: ${whitelist?.length || 0}
+║ ${whitelist?.length? '𖠁 ' + whitelistList : ''}
+╠═══════════════════
+║ 📝 USAGE:
+║ ${prefix}abw on global
+║ ${prefix}abw on group
+║ ${prefix}abw off global
+║ ${prefix}abw action delete
+║ ${prefix}abw action warn
+║ ${prefix}abw action kick
+║ ${prefix}abw add word matusi
+║ ${prefix}abw del word matusi
+║ ${prefix}abw add whitelist 255xxx
+║ ${prefix}abw list
+╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
     }
 
-    // ON/OFF for current scope
-    if (action === 'on') {
-      if (isGroup) {
-        await db.setGroupKey(from, 'antibadwordEnabled', true)
+    // ON / OFF
+    if (action === 'on' || action === 'enable') {
+      if (!target || target === 'global' || target === 'all') {
+        await db.set('antibadwords', true)
+        await db.set('antibadwordsGroupsEnabled', true)
+        await db.set('antibadwordsAction', 'delete')
         return await sock.sendMessage(from, {
-          text: nobox? 'AntiBadWord enabled for this group' : await box.success('AntiBadWord enabled for this group')
-        }, { quoted: msg })
-      } else if (isDM) {
-        await db.set('antibadwordDmEnabled', true)
-        return await sock.sendMessage(from, {
-          text: nobox? 'AntiBadWord enabled for DMs' : await box.success('AntiBadWord enabled for DMs')
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Anti Bad Words Enabled\n║ Mode: GLOBAL\n║ Action: Delete\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
-    }
 
-    if (action === 'off') {
-      if (isGroup) {
-        await db.setGroupKey(from, 'antibadwordEnabled', false)
+      if (target === 'group' && isGroup) {
+        const groups = await db.get('antibadwordsGroups') || []
+        if (!groups.includes(from)) {
+          groups.push(from)
+          await db.set('antibadwordsGroups', groups)
+        }
+        await db.set('antibadwords', true)
         return await sock.sendMessage(from, {
-          text: nobox? 'AntiBadWord disabled for this group' : await box.success('AntiBadWord disabled for this group')
-        }, { quoted: msg })
-      } else if (isDM) {
-        await db.set('antibadwordDmEnabled', false)
-        return await sock.sendMessage(from, {
-          text: nobox? 'AntiBadWord disabled for DMs' : await box.success('AntiBadWord disabled for DMs')
-        }, { quoted: msg })
-      }
-    }
-
-    // GLOBAL ON/OFF
-    if (action === 'global') {
-      const subAction = args[1]?.toLowerCase()
-      if (subAction === 'on') {
-        await db.set('antibadwordGlobalEnabled', true)
-        return await sock.sendMessage(from, {
-          text: nobox? 'AntiBadWord enabled globally' : await box.success('AntiBadWord enabled globally')
-        }, { quoted: msg })
-      }
-      if (subAction === 'off') {
-        await db.set('antibadwordGlobalEnabled', false)
-        return await sock.sendMessage(from, {
-          text: nobox? 'AntiBadWord disabled globally' : await box.success('AntiBadWord disabled globally')
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Anti Bad Words Enabled\n║ Target: THIS GROUP\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
     }
 
-    // DM ON/OFF
-    if (action === 'dm') {
-      const subAction = args[1]?.toLowerCase()
-      if (subAction === 'on') {
-        await db.set('antibadwordDmEnabled', true)
+    // OFF / DISABLE
+    if (action === 'off' || action === 'disable') {
+      if (!target || target === 'global' || target === 'all') {
+        await db.set('antibadwords', false)
         return await sock.sendMessage(from, {
-          text: nobox? 'AntiBadWord enabled for DMs' : await box.success('AntiBadWord enabled for DMs')
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Anti Bad Words Disabled\n║ Mode: GLOBAL OFF\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
-      if (subAction === 'off') {
-        await db.set('antibadwordDmEnabled', false)
+
+      if (target === 'group' && isGroup) {
+        let groups = await db.get('antibadwordsGroups') || []
+        groups = groups.filter(g => g!== from)
+        await db.set('antibadwordsGroups', groups)
         return await sock.sendMessage(from, {
-          text: nobox? 'AntiBadWord disabled for DMs' : await box.success('AntiBadWord disabled for DMs')
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Anti Bad Words Disabled\n║ Target: THIS GROUP\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+    }
+
+    // ACTION TYPE
+    if (action === 'action' || action === 'punish' || action === 'set') {
+      if (['delete', 'warn', 'kick'].includes(target)) {
+        await db.set('antibadwordsAction', target)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ⚙️ Action Set\n║ Type: ${target.toUpperCase()}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
     }
 
     // ADD WORD
     if (action === 'add') {
-      const word = args.slice(1).join(' ').toLowerCase()
-      if (!word) return await sock.sendMessage(from, { text: 'Provide a word' }, { quoted: msg })
-
-      const dbKey = isGroup? 'antibadwordList' : isDM? 'antibadwordDmList' : 'antibadwordGlobalList'
-      const list = isGroup
-       ? await db.getGroupKey(from, dbKey) || []
-        : await db.get(dbKey) || []
-
-      if (!list.includes(word)) {
-        list.push(word)
-        if (isGroup) {
-          await db.setGroupKey(from, dbKey, list)
-        } else {
-          await db.set(dbKey, list)
+      if (target === 'word') {
+        if (!value) {
+          return await sock.sendMessage(from, {
+            text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Provide a word\n║ ${prefix}abw add word matusi\n╚━━━━━━━━━━━━━━━━━═❒`
+          }, { quoted: m })
         }
+        const wordlist = await db.get('antibadwordsList') || []
+        const word = value.toLowerCase().trim()
+        if (!wordlist.includes(word)) {
+          wordlist.push(word)
+          await db.set('antibadwordsList', wordlist)
+        }
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Word Added\n║ ${word}\n║ Total: ${wordlist.length}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
 
-      return await sock.sendMessage(from, {
-        text: nobox? `Added "${word}" to bad word list` : await box.success(`Added "${word}" to bad word list`)
-      }, { quoted: msg })
+      if (target === 'whitelist' || target === 'wl') {
+        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
+        const whitelist = await db.get('antibadwordsWhitelist') || []
+        if (!whitelist.includes(userJid)) {
+          whitelist.push(userJid)
+          await db.set('antibadwordsWhitelist', whitelist)
+        }
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ User Whitelisted\n║ ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
     }
 
-    // DELETE WORD
-    if (action === 'del') {
-      const word = args.slice(1).join(' ').toLowerCase()
-      const dbKey = isGroup? 'antibadwordList' : isDM? 'antibadwordDmList' : 'antibadwordGlobalList'
-      const list = isGroup
-       ? await db.getGroupKey(from, dbKey) || []
-        : await db.get(dbKey) || []
-
-      const newList = list.filter(w => w!== word)
-      if (isGroup) {
-        await db.setGroupKey(from, dbKey, newList)
-      } else {
-        await db.set(dbKey, newList)
+    // DEL / REMOVE
+    if (action === 'del' || action === 'remove' || action === 'delete') {
+      if (target === 'word') {
+        if (!value) {
+          return await sock.sendMessage(from, {
+            text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Provide a word\n╚━━━━━━━━━━━━━━━━━═❒`
+          }, { quoted: m })
+        }
+        let wordlist = await db.get('antibadwordsList') || []
+        const word = value.toLowerCase().trim()
+        wordlist = wordlist.filter(w => w!== word)
+        await db.set('antibadwordsList', wordlist)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ Word Removed\n║ ${word}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
 
-      return await sock.sendMessage(from, {
-        text: nobox? `Removed "${word}" from bad word list` : await box.success(`Removed "${word}" from bad word list`)
-      }, { quoted: msg })
+      if (target === 'whitelist' || target === 'wl') {
+        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
+        let whitelist = await db.get('antibadwordsWhitelist') || []
+        whitelist = whitelist.filter(u => u!== userJid)
+        await db.set('antibadwordsWhitelist', whitelist)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ User Removed\n║ ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
     }
 
     // LIST WORDS
-    if (action === 'list') {
-      const dbKey = isGroup? 'antibadwordList' : isDM? 'antibadwordDmList' : 'antibadwordGlobalList'
-      const list = isGroup
-       ? await db.getGroupKey(from, dbKey) || await db.get('antibadwordGlobalList') || []
-        : await db.get(dbKey) || []
-
-      const text = list.length
-       ? `Bad Words (${list.length}):\n${list.map((w, i) => `${i + 1}. ${w}`).join('\n')}`
-        : 'No bad words set'
-
-      return await sock.sendMessage(from, { text }, { quoted: msg })
-    }
-
-    // SET MAX WARNS
-    if (action === 'setwarn') {
-      const warns = parseInt(args[1])
-      if (isNaN(warns) || warns < 1 || warns > 10) {
+    if (action === 'list' || action === 'words') {
+      const wordlist = await db.get('antibadwordsList') || []
+      if (wordlist.length === 0) {
         return await sock.sendMessage(from, {
-          text: nobox? 'Usage: antibadword setwarn 1-10' : await box.error('Usage: antibadword setwarn 1-10')
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 📝 Word List Empty\n║ Add words first\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
-
-      const dbKey = isGroup? 'antibadwordMaxWarns' : 'antibadwordDmMaxWarns'
-      if (isGroup) {
-        await db.setGroupKey(from, dbKey, warns)
-      } else {
-        await db.set(dbKey, warns)
-      }
-
       return await sock.sendMessage(from, {
-        text: nobox? `Max warns set to ${warns}` : await box.success(`Max warns set to ${warns}`)
-      }, { quoted: msg })
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 📝 BAD WORDS LIST\n╠═══════════════════\n║ ${wordlist.join(', ')}\n║\n║ Total: ${wordlist.length}\n╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
     }
 
-    // RESET WARNS
-    if (action === 'resetwarn') {
-      const mentioned = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
-      if (!mentioned) {
-        return await sock.sendMessage(from, {
-          text: nobox? 'Mention a user: antibadword resetwarn @user' : await box.error('Mention a user: antibadword resetwarn @user')
-        }, { quoted: msg })
-      }
-      const warnKey = `antibadword_warns_${from}_${mentioned}`
-      await db.set(warnKey, 0)
+    // CLEAR ALL
+    if (action === 'clear' || action === 'reset') {
+      await db.set('antibadwordsWhitelist', [])
+      await db.set('antibadwordsGroups', [])
+      await db.set('antibadwordsList', [])
       return await sock.sendMessage(from, {
-        text: nobox? `Reset warns for @${mentioned.split('@')[0]}` : await box.success(`Reset warns for @${mentioned.split('@')[0]}`),
-        mentions: [mentioned]
-      }, { quoted: msg })
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ All Lists Cleared\n║ Whitelist + Groups + Words\n╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
     }
 
-    // RESET ALL
-    if (action === 'reset') {
-      await Promise.all([
-        db.set('antibadwordGlobalEnabled', false),
-        db.set('antibadwordDmEnabled', false),
-        db.set('antibadwordMaxWarns', 3),
-        db.set('antibadwordDmMaxWarns', 3),
-        db.set('antibadwordGlobalList', [])
-      ])
-      return await sock.sendMessage(from, {
-        text: nobox? 'AntiBadWord reset to defaults' : await box.success('AntiBadWord reset to defaults')
-      }, { quoted: msg })
-    }
-
+    // INVALID
     await sock.sendMessage(from, {
-      text: nobox? 'Invalid action' : await box.error('Invalid action')
-    }, { quoted: msg })
+      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Invalid command\n║ Use: ${prefix}abw status\n╚━━━━━━━━━━━━━━━━━═❒`
+    }, { quoted: m })
   }
 }
