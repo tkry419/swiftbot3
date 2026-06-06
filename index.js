@@ -252,7 +252,7 @@ async function startBot() {
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
     browser: Browsers.ubuntu('Chrome'),
-    markOnlineOnConnect: true,
+    markOnlineOnConnect: false,
     syncFullHistory: false,
     generateHighQualityLinkPreview: false,
     defaultQueryTimeoutMs: 60000,
