@@ -1,154 +1,120 @@
 /**
- * SwiftBot - plugins/observers/automations/antibadword.js
- * AntiBadWord System - Auto delete bad words + warn + kick
- * Scope: global/group/dm with custom word list - vs Bot
+ * SwiftBot - plugins/observers/antibadwords.js
+ * Anti Bad Words Observer - Auto Delete/Kick
+ * Matches antibadwords.js command settings
+ * Category: Automation
  */
 
 export default {
-  name: 'antibadword',
+  name: 'antibadwords',
   event: 'messages.upsert',
-  desc: 'Auto delete bad words and warn users',
-  category: 'automations',
-  permission: 'all',
+  desc: 'Deletes bad words and punishes senders based on DB settings',
+  category: 'Automation',
+  enabled: true,
 
-  execute: async (sock, update, { db, logger }) => {
+  execute: async (sock, m, { db, logger }) => {
     try {
-      const m = update.messages?.[0]
-      if (!m?.message || m.key.fromMe) return
+      if (m.key.fromMe) return
+      if (!m.message) return
 
       const from = m.key.remoteJid
       const isGroup = from.endsWith('@g.us')
-      const isDM =!isGroup
+      if (!isGroup) return
 
-      // Get message text
-      const body = m.message?.conversation
-        || m.message?.extendedTextMessage?.text
-        || m.message?.imageMessage?.caption
-        || m.message?.videoMessage?.caption
+      const sender = m.key.participant || from
+      const body = m.message.conversation
+        || m.message.extendedTextMessage?.text
+        || m.message.imageMessage?.caption
+        || m.message.videoMessage?.caption
         || ''
 
       if (!body) return
 
-      // Get settings
+      // Load settings
       const [
-        globalEnabled,
-        groupEnabled,
-        dmEnabled,
-        globalWords,
-        groupWords,
-        dmWords
+        antibadEnabled,
+        actionType,
+        groupsWhitelist,
+        groupsEnabled,
+        userWhitelist,
+        wordlist,
+        owner
       ] = await Promise.all([
-        db.get('antibadwordGlobalEnabled'),
-        isGroup? db.getGroupKey(from, 'antibadwordEnabled') : null,
-        isDM? db.get('antibadwordDmEnabled') : null,
-        db.get('antibadwordGlobalList'),
-        isGroup? db.getGroupKey(from, 'antibadwordList') : null,
-        isDM? db.get('antibadwordDmList') : null
+        db.get('antibadwords'),
+        db.get('antibadwordsAction'),
+        db.get('antibadwordsGroups'),
+        db.get('antibadwordsGroupsEnabled'),
+        db.get('antibadwordsWhitelist'),
+        db.get('antibadwordsList'),
+        db.get('owner')
       ])
 
-      // Check if enabled for this scope
-      let isEnabled = false
-      if (isGroup) {
-        isEnabled = groupEnabled === true || (groupEnabled === null && globalEnabled === true)
-      } else if (isDM) {
-        isEnabled = dmEnabled === true || (dmEnabled === null && globalEnabled === true)
-      }
+      if (!antibadEnabled) return
+      if (!wordlist || wordlist.length === 0) return
 
-      if (!isEnabled) return
+      // Check if group is enabled
+      if (groupsEnabled === false) return
+      if (groupsWhitelist?.length > 0 &&!groupsWhitelist.includes(from)) return
 
-      // Get word list based on scope
-      let badWords = []
-      if (isGroup) {
-        badWords = groupWords || globalWords || []
-      } else if (isDM) {
-        badWords = dmWords || globalWords || []
-      } else {
-        badWords = globalWords || []
-      }
+      // Check user whitelist + owner + admin
+      const cleanJid = (jid) => jid?.split('@')[0]?.split(':')[0] || ''
+      const senderClean = cleanJid(sender)
 
-      if (badWords.length === 0) return
+      if (userWhitelist?.includes(sender)) return
+      if (senderClean === owner) return
 
-      // Check if message contains bad word
-      const lowerBody = body.toLowerCase()
-      const foundWord = badWords.find(word => {
-        const pattern = new RegExp(`\\b${word.toLowerCase()}\\b`, 'i')
-        return pattern.test(lowerBody)
+      // Check if sender is admin
+      try {
+        const metadata = await sock.groupMetadata(from)
+        const participant = metadata.participants.find(p => cleanJid(p.id) === senderClean)
+        if (participant?.admin) return
+      } catch {}
+
+      // Check for bad words - case insensitive, whole word match
+      const messageLower = body.toLowerCase()
+      const foundWord = wordlist.find(word => {
+        const regex = new RegExp(`\\b${word}\\b`, 'i')
+        return regex.test(messageLower)
       })
 
       if (!foundWord) return
 
-      const sender = m.key.participant || from
-      const botId = sock.user?.id
-      const botClean = botId?.split('@')[0]?.split(':')[0] || ''
+      // Bad word detected - take action
+      const punishment = actionType || 'delete'
 
-      // Don't act on bot or owner
-      const owner = await db.get('owner')
-      if (sender.includes(botClean) || sender.includes(owner)) return
-
-      // Check if sender is admin - admins bypass
-      if (isGroup) {
-        try {
-          const metadata = await sock.groupMetadata(from)
-          const participant = metadata.participants.find(p => p.id === sender)
-          const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin'
-          if (isAdmin) return
-        } catch (e) {
-          logger.warn('ANTIBADWORD', 'Failed to check admin', e.message)
-        }
+      // 1. Delete message
+      try {
+        await sock.sendMessage(from, { delete: m.key })
+      } catch (e) {
+        logger.error('ANTIBADWORDS', 'Failed to delete message', e.message)
       }
 
-      // Delete message
-      await sock.sendMessage(from, { delete: m.key })
+      // 2. Take punishment action
+      if (punishment === 'warn') {
+        await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ⚠️ @${senderClean} BAD WORD\n║ Word: ${foundWord}\n║ No insults allowed\n╚━━━━━━━━━━━━━━━━━═❒`,
+          mentions: [sender]
+        })
+      }
 
-      // Get warn settings
-      const maxWarns = isGroup
-       ? await db.getGroupKey(from, 'antibadwordMaxWarns') || await db.get('antibadwordMaxWarns') || 3
-        : await db.get('antibadwordDmMaxWarns') || 3
+      if (punishment === 'kick') {
+        await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🤬 @${senderClean} USED BAD WORD\n║ Word: ${foundWord}\n║ User will be removed\n╚━━━━━━━━━━━━━━━━━═❒`,
+          mentions: [sender]
+        })
 
-      const warnKey = `antibadword_warns_${from}_${sender}`
-      const currentWarns = await db.get(warnKey) || 0
-      const newWarns = currentWarns + 1
-
-      await db.set(warnKey, newWarns)
-
-      if (isGroup) {
-        const groupMetadata = await sock.groupMetadata(from)
-        const groupName = groupMetadata.subject
-
-        if (newWarns >= maxWarns) {
-          // Kick user
+        // Kick user
+        setTimeout(async () => {
           try {
             await sock.groupParticipantsUpdate(from, [sender], 'remove')
-            await sock.sendMessage(from, {
-              text: `🚫 @${sender.split('@')[0]} kicked from ${groupName}\nReason: Bad word "${foundWord}" ${maxWarns}/${maxWarns} times`,
-              mentions: [sender]
-            })
-            await db.set(warnKey, 0) // Reset warns
-            logger.warn('ANTIBADWORD', `Kicked ${sender} from ${from} for bad word`)
           } catch (e) {
-            await sock.sendMessage(from, {
-              text: `⚠️ Cannot kick @${sender.split('@')[0]} - Bot needs admin rights`,
-              mentions: [sender]
-            })
+            logger.error('ANTIBADWORDS', 'Failed to kick user', e.message)
           }
-        } else {
-          // Warn user
-          await sock.sendMessage(from, {
-            text: `⚠️ @${sender.split('@')[0]} Bad word detected!\nWord: "${foundWord}"\nWarning: ${newWarns}/${maxWarns}\n${maxWarns - newWarns} more = kick`,
-            mentions: [sender]
-          })
-          logger.info('ANTIBADWORD', `Warned ${sender} in ${from} - ${newWarns}/${maxWarns}`)
-        }
-      } else {
-        // DM - just warn
-        await sock.sendMessage(from, {
-          text: `⚠️ Bad word detected!\nWord: "${foundWord}"\nWarning: ${newWarns}/${maxWarns}`
-        })
-        logger.info('ANTIBADWORD', `Warned ${sender} in DM - ${newWarns}/${maxWarns}`)
+        }, 2000)
       }
 
     } catch (e) {
-      logger.error('ANTIBADWORD', 'Observer failed', e.message)
+      logger.error('ANTIBADWORDS_OBSERVER', 'Failed to process', e.message)
     }
   }
 }
