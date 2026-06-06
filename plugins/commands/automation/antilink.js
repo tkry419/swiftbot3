@@ -1,144 +1,166 @@
 /**
- * SwiftBot - plugins/commands/automations/antilink.js
- * AntiLink Control Panel - Enable/disable/set scope
+ * SwiftBot - plugins/commands/automation/antilink.js
+ * Anti Link Manager - Full Control
+ * Delete links, warn, kick - Owner only
  */
 
 export default {
   name: 'antilink',
-  desc: 'Control antilink system',
-  usage: 'antilink on/off/global/setwarn/whitelist/resetwarn',
-  category: 'automations',
-  permission: 'admin',
-  alias: ['antilinks'],
+  alias: ['nolink', 'antilik', 'nolinks', 'al'],
+  desc: 'Control anti-link protection in groups',
+  usage: '[on/off/status] [global/group] [action]',
+  category: 'Automation',
+  permission: 'owner',
 
-  execute: async (sock, m, args, { db, prefix, nobox, box }) => {
+  execute: async (sock, m, args, { db, prefix, isOwner, isGroup }) => {
     const from = m.key.remoteJid
-    const msg = m
-    const isGroup = from.endsWith('@g.us')
-    const action = args[0]?.toLowerCase()
 
-    if (!action) {
-      const [globalStatus, groupStatus, maxWarns] = await Promise.all([
-        db.get('antilinkEnabled'),
-        isGroup? db.getGroupKey(from, 'antilinkEnabled') : null,
-        isGroup? db.getGroupKey(from, 'antilinkMaxWarns') : await db.get('antilinkMaxWarns')
+    if (!isOwner) {
+      return await sock.sendMessage(from, {
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Owner only command\n╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
+    }
+
+    const action = args[0]?.toLowerCase()
+    const target = args[1]?.toLowerCase()
+    const punishment = args[2]?.toLowerCase()
+
+    // STATUS
+    if (!action || action === 'status' || action === 'info') {
+      const [
+        antilink, action_type, groups, groupsEnabled, whitelist
+      ] = await Promise.all([
+        db.get('antilink'),
+        db.get('antilinkAction'),
+        db.get('antilinkGroups'),
+        db.get('antilinkGroupsEnabled'),
+        db.get('antilinkWhitelist')
       ])
 
-      const statusText = isGroup
-       ? `Group: ${groupStatus === true? 'ON' : groupStatus === false? 'OFF' : 'INHERIT'}\nGlobal: ${globalStatus? 'ON' : 'OFF'}`
-        : `Global: ${globalStatus? 'ON' : 'OFF'}`
+      const groupList = groups?.length? groups.map(g => g.split('@')[0]).join(', ') : 'None'
+      const whitelistList = whitelist?.length? whitelist.map(u => u.split('@')[0]).join(', ') : 'None'
 
-      const text = nobox
- ? `AntiLink Control\n\nStatus:\n${statusText}\nMax Warns: ${maxWarns || 3}\n\nUsage:\n${prefix}antilink on - Enable for this group\n${prefix}antilink off - Disable for this group\n${prefix}antilink global on - Enable globally\n${prefix}antilink global off - Disable globally\n${prefix}antilink setwarn 5 - Set max warns\n${prefix}antilink whitelist add youtube.com\n${prefix}antilink resetwarn @user`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ ANTILINK CONTROL\n║ \n║ Status:\n║ ${statusText.replace('\n', '\n║ ')}\n║ Max Warns: ${maxWarns || 3}\n║ \n║ Usage:\n║ ${prefix}antilink on\n║ ${prefix}antilink off\n║ ${prefix}antilink global on\n║ ${prefix}antilink global off\n║ ${prefix}antilink setwarn 5\n║ ${prefix}antilink whitelist add domain\n║ ${prefix}antilink resetwarn @user\n╚━━━━━━━━━━━━━━━━━═❒`
-
-      return await sock.sendMessage(from, { text }, { quoted: msg })
+      return await sock.sendMessage(from, {
+        text: `╔═━━━━━━━━━━━━━━━━═❒
+║ 🔗 ANTI LINK STATUS
+╠═══════════════════
+║ Status: ${antilink? '🟢 ON' : '🔴 OFF'}
+║ Action: ${action_type || 'delete'}
+║
+║ 📍 TARGETS:
+║ All Groups: ${groupsEnabled!== false? '✅ ON' : '❌ OFF'}
+║ Specific Groups: ${groups?.length || 0}
+║ ${groups?.length? '𖠁 ' + groupList : ''}
+║ Whitelisted Users: ${whitelist?.length || 0}
+║ ${whitelist?.length? '𖠁 ' + whitelistList : ''}
+╠═══════════════════
+║ 📝 USAGE:
+║ ${prefix}al on global
+║ ${prefix}al on group (this group)
+║ ${prefix}al off global
+║ ${prefix}al action delete
+║ ${prefix}al action warn
+║ ${prefix}al action kick
+║ ${prefix}al add whitelist 255xxx
+║ ${prefix}al del whitelist 255xxx
+║ ${prefix}al clear
+╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
     }
 
-    // GLOBAL ON/OFF
-    if (action === 'global') {
-      const subAction = args[1]?.toLowerCase()
-      if (subAction === 'on') {
-        await db.set('antilinkEnabled', true)
+    // ON / OFF
+    if (action === 'on' || action === 'enable') {
+      if (!target || target === 'global' || target === 'all') {
+        await db.set('antilink', true)
+        await db.set('antilinkGroupsEnabled', true)
+        await db.set('antilinkAction', 'delete')
         return await sock.sendMessage(from, {
-          text: nobox? 'AntiLink enabled globally' : await box.success('AntiLink enabled globally')
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Anti Link Enabled\n║ Mode: GLOBAL\n║ Action: Delete\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
-      if (subAction === 'off') {
-        await db.set('antilinkEnabled', false)
+
+      if (target === 'group' && isGroup) {
+        const groups = await db.get('antilinkGroups') || []
+        if (!groups.includes(from)) {
+          groups.push(from)
+          await db.set('antilinkGroups', groups)
+        }
+        await db.set('antilink', true)
         return await sock.sendMessage(from, {
-          text: nobox? 'AntiLink disabled globally' : await box.success('AntiLink disabled globally')
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Anti Link Enabled\n║ Target: THIS GROUP\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
     }
 
-    // GROUP ON/OFF - only works in groups
-    if (!isGroup) {
-      return await sock.sendMessage(from, {
-        text: nobox? 'This command works in groups only' : await box.error('This command works in groups only')
-      }, { quoted: msg })
-    }
-
-    if (action === 'on') {
-      await db.setGroupKey(from, 'antilinkEnabled', true)
-      return await sock.sendMessage(from, {
-        text: nobox? 'AntiLink enabled for this group' : await box.success('AntiLink enabled for this group')
-      }, { quoted: msg })
-    }
-
-    if (action === 'off') {
-      await db.setGroupKey(from, 'antilinkEnabled', false)
-      return await sock.sendMessage(from, {
-        text: nobox? 'AntiLink disabled for this group' : await box.success('AntiLink disabled for this group')
-      }, { quoted: msg })
-    }
-
-    // SET MAX WARNS
-    if (action === 'setwarn') {
-      const warns = parseInt(args[1])
-      if (isNaN(warns) || warns < 1 || warns > 10) {
+    // OFF / DISABLE
+    if (action === 'off' || action === 'disable') {
+      if (!target || target === 'global' || target === 'all') {
+        await db.set('antilink', false)
         return await sock.sendMessage(from, {
-          text: nobox? 'Usage: antilink setwarn 1-10' : await box.error('Usage: antilink setwarn 1-10')
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Anti Link Disabled\n║ Mode: GLOBAL OFF\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
-      await db.setGroupKey(from, 'antilinkMaxWarns', warns)
-      return await sock.sendMessage(from, {
-        text: nobox? `Max warns set to ${warns}` : await box.success(`Max warns set to ${warns}`)
-      }, { quoted: msg })
+
+      if (target === 'group' && isGroup) {
+        let groups = await db.get('antilinkGroups') || []
+        groups = groups.filter(g => g!== from)
+        await db.set('antilinkGroups', groups)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Anti Link Disabled\n║ Target: THIS GROUP\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
     }
 
-    // WHITELIST
-    if (action === 'whitelist') {
-      const subAction = args[1]?.toLowerCase()
-      const domain = args[2]?.toLowerCase()
+    // ACTION TYPE
+    if (action === 'action' || action === 'punish' || action === 'set') {
+      if (['delete', 'warn', 'kick'].includes(target)) {
+        await db.set('antilinkAction', target)
+        return await sock.sendMessage(from, {
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ⚙️ Action Set\n║ Type: ${target.toUpperCase()}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
+      }
+    }
 
-      if (subAction === 'add' && domain) {
-        const list = await db.getGroupKey(from, 'antilinkWhitelist') || []
-        if (!list.includes(domain)) {
-          list.push(domain)
-          await db.setGroupKey(from, 'antilinkWhitelist', list)
+    // ADD WHITELIST
+    if (action === 'add') {
+      if (target === 'whitelist' || target === 'wl') {
+        const userJid = punishment?.includes('@')? punishment : `${punishment}@s.whatsapp.net`
+        const whitelist = await db.get('antilinkWhitelist') || []
+        if (!whitelist.includes(userJid)) {
+          whitelist.push(userJid)
+          await db.set('antilinkWhitelist', whitelist)
         }
         return await sock.sendMessage(from, {
-          text: nobox? `Added ${domain} to whitelist` : await box.success(`Added ${domain} to whitelist`)
-        }, { quoted: msg })
-      }
-
-      if (subAction === 'del' && domain) {
-        const list = await db.getGroupKey(from, 'antilinkWhitelist') || []
-        const newList = list.filter(d => d!== domain)
-        await db.setGroupKey(from, 'antilinkWhitelist', newList)
-        return await sock.sendMessage(from, {
-          text: nobox? `Removed ${domain} from whitelist` : await box.success(`Removed ${domain} from whitelist`)
-        }, { quoted: msg })
-      }
-
-      if (subAction === 'list') {
-        const list = await db.getGroupKey(from, 'antilinkWhitelist') || []
-        const text = list.length
-         ? `Whitelisted domains:\n${list.map(d => `- ${d}`).join('\n')}`
-          : 'No whitelisted domains'
-        return await sock.sendMessage(from, { text }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ User Whitelisted\n║ ${punishment}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
     }
 
-    // RESET WARNS
-    if (action === 'resetwarn') {
-      const mentioned = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
-      if (!mentioned) {
+    // DEL / REMOVE
+    if (action === 'del' || action === 'remove' || action === 'delete') {
+      if (target === 'whitelist' || target === 'wl') {
+        const userJid = punishment?.includes('@')? punishment : `${punishment}@s.whatsapp.net`
+        let whitelist = await db.get('antilinkWhitelist') || []
+        whitelist = whitelist.filter(u => u!== userJid)
+        await db.set('antilinkWhitelist', whitelist)
         return await sock.sendMessage(from, {
-          text: nobox? 'Mention a user: antilink resetwarn @user' : await box.error('Mention a user: antilink resetwarn @user')
-        }, { quoted: msg })
+          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ User Removed\n║ ${punishment}\n╚━━━━━━━━━━━━━━━━━═❒`
+        }, { quoted: m })
       }
-      const warnKey = `antilink_warns_${from}_${mentioned}`
-      await db.set(warnKey, 0)
+    }
+
+    // CLEAR ALL
+    if (action === 'clear' || action === 'reset') {
+      await db.set('antilinkWhitelist', [])
+      await db.set('antilinkGroups', [])
       return await sock.sendMessage(from, {
-        text: nobox? `Reset warns for @${mentioned.split('@')[0]}` : await box.success(`Reset warns for @${mentioned.split('@')[0]}`),
-        mentions: [mentioned]
-      }, { quoted: msg })
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ All Lists Cleared\n║ Whitelist + Groups reset\n╚━━━━━━━━━━━━━━━━━═❒`
+      }, { quoted: m })
     }
 
+    // INVALID
     await sock.sendMessage(from, {
-      text: nobox? 'Invalid action' : await box.error('Invalid action. Use: on/off/global/setwarn/whitelist/resetwarn')
-    }, { quoted: msg })
+      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Invalid command\n║ Use: ${prefix}al status\n╚━━━━━━━━━━━━━━━━━═❒`
+    }, { quoted: m })
   }
 }
