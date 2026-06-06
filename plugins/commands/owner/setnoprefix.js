@@ -1,33 +1,84 @@
+/**
+ * SwiftBot - plugins/commands/owner/setnoprefix.js
+ * Toggle noPrefix mode ON/OFF - Real-time from DB
+ * Hardcoded boxes - NO nobox option
+ */
+
 export default {
   name: 'setnoprefix',
   alias: ['noprefix'],
-  desc: 'Enable/disable no-prefix mode',
-  usage: '<on/off>',
+  desc: 'Toggle noPrefix mode on/off',
+  usage: 'on|off',
   category: 'owner',
   permission: 'owner',
 
-  execute: async (sock, m, args, { db, box, nobox }) => {
+  execute: async (sock, m, args, { db }) => {
     const from = m.key.remoteJid
-    const value = args[0]?.toLowerCase()
 
-    if (!value ||!['on', 'off'].includes(value)) {
-      const current = await db.get('noPrefix')
-      const prefix = await db.get('prefix') || '#'
-      const status = current? 'ON - No prefix needed' : `OFF - Use ${prefix}`
-      const msg = nobox
-      ? `NoPrefix: ${status}\n\nUsage: #setnoprefix on/off`
-        : await box.info('NO PREFIX', `Status: ${status}\n\nUsage: #setnoprefix on/off`)
-      return await sock.sendMessage(from, { text: msg }, { quoted: m })
+    const [botname, prefix, version, current] = await Promise.all([
+      db.get('botname'),
+      db.get('prefix'),
+      db.get('version'),
+      db.get('noPrefix')
+    ])
+
+    const mode = args[0]?.toLowerCase()
+
+    // Kama hakuna argument, onyesha status
+    if (!mode ||!['on', 'off'].includes(mode)) {
+      const status = current? 'ON' : 'OFF'
+      const caption = `
+╔═━━━━━━━━━━━━━━━━═❒
+║ ${botname.toUpperCase()} v${version || '3.2.0'}
+╚━━━━━━━━━━━━━━━━━═❒
+╔═━━━━━━━━━━━━━━━━═❒
+║ ⌬ *NOPREFIX STATUS* ⌬
+║ 𖠁 *𝕾𝖙𝖆𝖙𝖚𝖘:* ${status}
+║ 𖠁 *𝕻𝖗𝖊𝖋𝖎𝖝:* [ ${prefix} ]
+║
+║ 𖠁 *𝖀𝖘𝖆𝖌𝖊:* ${prefix}setnoprefix on
+║ 𖠁 *𝖀𝖘𝖆𝖌𝖊:* ${prefix}setnoprefix off
+╚━━━━━━━━━━━━━━━━━═❒
+`
+      return await sock.sendMessage(from, { text: caption }, { quoted: m })
     }
 
-    const newVal = value === 'on'
-    await db.set('noPrefix', newVal)
+    // Weka noprefix
+    const newValue = mode === 'on'? true : false
 
-    const prefix = await db.get('prefix') || '#'
-    const msg = newVal
-    ? `NoPrefix enabled ✅\n\nNow you can use "menu" instead of "${prefix}menu"`
-      : await box.success(`Prefix mode enabled\n\nUse "${prefix}menu" to run commands.`)
+    if (current === newValue) {
+      const caption = `
+╔═━━━━━━━━━━━━━━━━═❒
+║ ${botname.toUpperCase()} v${version || '3.2.0'}
+╚━━━━━━━━━━━━━━━━━═❒
+╔═━━━━━━━━━━━━━━━━═❒
+║ ⌬ *NOPREFIX* ⌬
+║ 𖠁 Already set to ${mode.toUpperCase()}
+║ 𖠁 No changes made
+╚━━━━━━━━━━━━━━━━━═❒
+`
+      return await sock.sendMessage(from, { text: caption }, { quoted: m })
+    }
 
-    await sock.sendMessage(from, { text: msg }, { quoted: m })
+    await db.set('noPrefix', newValue)
+
+    const statusText = newValue
+     ? 'Commands work without prefix now\nExample: menu, ping, alive'
+      : `Commands need prefix now\nExample: ${prefix}menu, ${prefix}ping`
+
+    const caption = `
+╔═━━━━━━━━━━━━━━━━═❒
+║ ${botname.toUpperCase()} v${version || '3.2.0'}
+╚━━━━━━━━━━━━━━━━━═❒
+╔═━━━━━━━━━━━━━━━━═❒
+║ ⌬ *NOPREFIX UPDATED* ⌬
+║ 𖠁 *𝕾𝖙𝖆𝖙𝖚𝖘:* ${mode.toUpperCase()}
+║ 𖠁 *𝕻𝖗𝖊𝖋𝖎𝖝:* [ ${prefix} ]
+║
+║ 𖠁 ${statusText}
+╚━━━━━━━━━━━━━━━━━═❒
+`
+
+    await sock.sendMessage(from, { text: caption }, { quoted: m })
   }
 }
