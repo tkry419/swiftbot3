@@ -1,47 +1,92 @@
 /**
  * SwiftBot - plugins/commands/ai/ai.js
- * Groq AI Chat - Works with router.js
+ * Groq AI Chat - 15 Model Fallbacks + API Key Fallback
  * English only - vs Bot
  */
 
 import axios from 'axios'
 
+// FALLBACK API KEY - Used if .env missing
+const GROQ_FALLBACK_KEY = ''
+
+// 15 MODELS - Moja ikifail, nyingine inajaribu
+const AI_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-70b-versatile',
+  'llama-3.1-8b-instant',
+  'mixtral-8x7b-32768',
+  'gemma2-9b-it',
+  'llama3-70b-8192',
+  'llama3-8b-8192',
+  'gemma-7b-it',
+  'llama2-70b-4096',
+  'mixtral-8x7b-instruct',
+  'llama-3.2-90b-text-preview',
+  'llama-3.2-11b-text-preview',
+  'llama-3.2-3b-preview',
+  'llama-3.2-1b-preview',
+  'llama-guard-3-8b'
+]
+
+async function callGroqAPI(prompt, systemPrompt, model, apiKey) {
+  try {
+    const res = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 800,
+        top_p: 1
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        timeout: 20000
+      }
+    )
+    return res.data?.choices?.[0]?.message?.content
+  } catch {
+    return null
+  }
+}
+
 export default {
   name: 'ai',
-  alias: ['gpt', 'ask', 'chat'],
-  desc: 'AI chat powered by Groq',
+  alias: ['ask', 'chat'],
+  desc: 'AI chat - 15 model fallbacks',
   usage: 'question or reply',
   category: 'AI',
   permission: 'all',
 
-  execute: async (sock, m, args, { db, prefix, nobox, box, isOwner }) => {
+  execute: async (sock, m, args, { db, prefix, nobox, box }) => {
     const from = m.key.remoteJid
     const msg = m
 
     const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage
-    const quotedText = quoted?.conversation || quoted?.extendedTextMessage?.text || ''
+    const quotedText = quoted?.conversation || quoted?.extendedTextMessage?.text || quoted?.imageMessage?.caption || ''
 
     let prompt = args.join(' ') || quotedText
 
     if (!prompt) {
-      const text = `╔═━━━━━━━━━━━━━━━━═❒\n║ Usage:\n║ ${prefix}ai What is Kenya?\n║ ${prefix}ai Explain quantum physics\n║ Reply text ${prefix}ai\n╚━━━━━━━━━━━━━━━━━═❒`
+      const text = nobox
+       ? `Usage:\n${prefix}ai What is Kenya?\n${prefix}ai Explain quantum physics\nReply text ${prefix}ai`
+        : `╔═━━━━━━━━━━━━━━━━═❒\n║ Usage:\n║ ${prefix}ai What is Kenya?\n║ ${prefix}ai Explain quantum physics\n║ Reply text ${prefix}ai\n╚━━━━━━━━━━━━━━━━━═❒`
       return await sock.sendMessage(from, { text }, { quoted: msg })
     }
 
-    // Check if Groq API key exists
-    if (!process.env.GROQ_API_KEY) {
-      const text = nobox
-       ? 'GROQ_API_KEY not set in environment'
-        : await box.error('GROQ_API_KEY not set in environment')
-      return await sock.sendMessage(from, { text }, { quoted: msg })
-    }
+    const apiKey = process.env.GROQ_API_KEY || GROQ_FALLBACK_KEY
 
     await sock.sendMessage(from, {
       react: { text: '🤖', key: m.key }
     })
 
     try {
-      // Get bot info from DB
       const [botName, ownerName, ownerNumber] = await Promise.all([
         db.get('botName'),
         db.get('ownerName'),
@@ -59,27 +104,14 @@ Rules:
 6. If asked your number: "${ownerNumber || 'I don\'t have a public number'}"
 7. No disclaimers unless dangerous.`
 
-      const res = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        {
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7,
-          max_tokens: 800
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-          },
-          timeout: 20000
-        }
-      )
+      let reply = null
 
-      const reply = res.data?.choices?.[0]?.message?.content || 'AI failed to respond'
+      for (const model of AI_MODELS) {
+        reply = await callGroqAPI(prompt, systemPrompt, model, apiKey)
+        if (reply && reply.trim().length > 5) break
+      }
+
+      if (!reply) throw new Error('ALL_AI_MODELS_FAILED')
 
       await sock.sendMessage(from, { text: reply }, { quoted: msg })
 
@@ -95,8 +127,8 @@ Rules:
       })
 
       const errorText = nobox
-       ? `AI Error: ${error.response?.data?.error?.message || error.message}`
-        : await box.error(`AI Error: ${error.response?.data?.error?.message || 'Service down'}`)
+       ? `AI Error: ${error.message}`
+        : await box.error(`AI service down. Try again.`)
 
       await sock.sendMessage(from, { text: errorText }, { quoted: msg })
     }
