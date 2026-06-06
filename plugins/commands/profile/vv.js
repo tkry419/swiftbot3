@@ -1,8 +1,10 @@
 /**
  * SwiftBot - plugins/commands/utility/vv.js
- * ViewOnce Revealer — Sends to same chat (profile/category)
+ * ViewOnce Revealer — Sends to same chat
  * Supports: image, video, audio — shows caption if exists
  */
+
+import { downloadMediaMessage } from '@whiskeysockets/baileys'
 
 export default {
   name: 'vv',
@@ -17,8 +19,8 @@ export default {
     const prefix = await db.get('prefix') || '#'
 
     // ─── GET QUOTED MESSAGE ──────────────────
-    const ctx     = m.message?.extendedTextMessage?.contextInfo
-    const quoted  = ctx?.quotedMessage
+    const ctx    = m.message?.extendedTextMessage?.contextInfo
+    const quoted = ctx?.quotedMessage
 
     if (!quoted) {
       return await sock.sendMessage(from, {
@@ -28,17 +30,16 @@ export default {
       }, { quoted: m })
     }
 
-    // ─── DETECT VIEW-ONCE TYPE ───────────────
-    // viewOnceMessage / viewOnceMessageV2 / viewOnceMessageV2Extension
+    // ─── DETECT VIEW-ONCE WRAPPER ────────────
     const voMsg =
       quoted.viewOnceMessage?.message ||
       quoted.viewOnceMessageV2?.message ||
       quoted.viewOnceMessageV2Extension?.message ||
-      quoted  // fallback: direct quoted might already be unwrapped
+      quoted
 
-    const imageMsg  = voMsg?.imageMessage
-    const videoMsg  = voMsg?.videoMessage
-    const audioMsg  = voMsg?.audioMessage
+    const imageMsg = voMsg?.imageMessage
+    const videoMsg = voMsg?.videoMessage
+    const audioMsg = voMsg?.audioMessage
 
     if (!imageMsg && !videoMsg && !audioMsg) {
       return await sock.sendMessage(from, {
@@ -48,87 +49,98 @@ export default {
       }, { quoted: m })
     }
 
-    // ─── SEND TYPING ────────────────────────
+    // ─── TYPING ──────────────────────────────
     try { await sock.sendPresenceUpdate('composing', from) } catch {}
 
-    const stanzaId   = ctx?.stanzaId
-    const participant = ctx?.participant || m.key.remoteJid
-
-    // ─── BUILD FORWARD KEY ──────────────────
-    const forwardKey = {
-      remoteJid: participant,
-      id:        stanzaId,
-      fromMe:    false
-    }
+    // ─── BUILD FAKE MESSAGE FOR DOWNLOAD ─────
+    // downloadMediaMessage needs a full message object
+    const stanzaId    = ctx?.stanzaId
+    const participant = ctx?.participant || from
 
     try {
-      // ─── IMAGE ────────────────────────────
+
+      // ─── IMAGE ──────────────────────────────
       if (imageMsg) {
-        const caption = imageMsg.caption || ''
-        const captionLine = caption ? `\n\n📝 _${caption}_` : ''
+        const caption     = imageMsg.caption || ''
+        const captionLine = caption ? `\n║  📝 _${caption}_` : ''
+        const label =
+          `╔═━━━━━━━━━━━━━━━━═❒\n` +
+          `║  👁️  VIEW ONCE REVEALED\n` +
+          `║  🖼️  Image${captionLine}\n` +
+          `╚━━━━━━━━━━━━━━━━━═❒`
+
+        const buffer = await downloadMediaMessage(
+          {
+            key: { remoteJid: participant, id: stanzaId, fromMe: false },
+            message: voMsg
+          },
+          'buffer',
+          {},
+          { logger: console, reuploadRequest: sock.updateMediaMessage }
+        )
 
         await sock.sendMessage(from, {
-          image:   { url: `https://mmg.whatsapp.net${imageMsg.url}` },
-          caption: `╔═━━━━━━━━━━━━━━━━═❒\n║  👁️  VIEW ONCE REVEALED\n║  🖼️  Image${captionLine}\n╚━━━━━━━━━━━━━━━━━═❒`,
-          mimetype: imageMsg.mimetype || 'image/jpeg'
+          image:   buffer,
+          caption: label
         }, { quoted: m })
-
-        // Fallback: try downloading via sock
-        .catch(async () => {
-          const buffer = await sock.downloadMediaMessage({ key: forwardKey, message: { imageMessage: imageMsg } })
-          await sock.sendMessage(from, {
-            image:   buffer,
-            caption: `╔═━━━━━━━━━━━━━━━━═❒\n║  👁️  VIEW ONCE REVEALED\n║  🖼️  Image${captionLine}\n╚━━━━━━━━━━━━━━━━━═❒`
-          }, { quoted: m })
-        })
 
         return await sock.sendMessage(from, { react: { text: '✅', key: m.key } })
       }
 
-      // ─── VIDEO ────────────────────────────
+      // ─── VIDEO ──────────────────────────────
       if (videoMsg) {
-        const caption = videoMsg.caption || ''
-        const captionLine = caption ? `\n\n📝 _${caption}_` : ''
+        const caption     = videoMsg.caption || ''
+        const captionLine = caption ? `\n║  📝 _${caption}_` : ''
+        const label =
+          `╔═━━━━━━━━━━━━━━━━═❒\n` +
+          `║  👁️  VIEW ONCE REVEALED\n` +
+          `║  🎬  Video${captionLine}\n` +
+          `╚━━━━━━━━━━━━━━━━━═❒`
+
+        const buffer = await downloadMediaMessage(
+          {
+            key: { remoteJid: participant, id: stanzaId, fromMe: false },
+            message: voMsg
+          },
+          'buffer',
+          {},
+          { logger: console, reuploadRequest: sock.updateMediaMessage }
+        )
 
         await sock.sendMessage(from, {
-          video:   { url: `https://mmg.whatsapp.net${videoMsg.url}` },
-          caption: `╔═━━━━━━━━━━━━━━━━═❒\n║  👁️  VIEW ONCE REVEALED\n║  🎬  Video${captionLine}\n╚━━━━━━━━━━━━━━━━━═❒`,
-          mimetype: videoMsg.mimetype || 'video/mp4'
+          video:   buffer,
+          caption: label
         }, { quoted: m })
-
-        .catch(async () => {
-          const buffer = await sock.downloadMediaMessage({ key: forwardKey, message: { videoMessage: videoMsg } })
-          await sock.sendMessage(from, {
-            video:   buffer,
-            caption: `╔═━━━━━━━━━━━━━━━━═❒\n║  👁️  VIEW ONCE REVEALED\n║  🎬  Video${captionLine}\n╚━━━━━━━━━━━━━━━━━═❒`
-          }, { quoted: m })
-        })
 
         return await sock.sendMessage(from, { react: { text: '✅', key: m.key } })
       }
 
-      // ─── AUDIO ────────────────────────────
+      // ─── AUDIO ──────────────────────────────
       if (audioMsg) {
         const isPtt = audioMsg.ptt || false
 
+        const buffer = await downloadMediaMessage(
+          {
+            key: { remoteJid: participant, id: stanzaId, fromMe: false },
+            message: voMsg
+          },
+          'buffer',
+          {},
+          { logger: console, reuploadRequest: sock.updateMediaMessage }
+        )
+
         await sock.sendMessage(from, {
-          audio:    { url: `https://mmg.whatsapp.net${audioMsg.url}` },
+          audio:    buffer,
           mimetype: audioMsg.mimetype || 'audio/ogg; codecs=opus',
-          ptt:      false  // Always send as audio file, not voice note
+          ptt:      false
         }, { quoted: m })
 
-        .catch(async () => {
-          const buffer = await sock.downloadMediaMessage({ key: forwardKey, message: { audioMessage: audioMsg } })
-          await sock.sendMessage(from, {
-            audio:    buffer,
-            mimetype: audioMsg.mimetype || 'audio/ogg; codecs=opus',
-            ptt:      false
-          }, { quoted: m })
-        })
-
-        // Send label separately for audio (no caption support)
         await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║  👁️  VIEW ONCE REVEALED\n║  🎵  ${isPtt ? 'Voice Note' : 'Audio'}\n╚━━━━━━━━━━━━━━━━━═❒`
+          text:
+            `╔═━━━━━━━━━━━━━━━━═❒\n` +
+            `║  👁️  VIEW ONCE REVEALED\n` +
+            `║  🎵  ${isPtt ? 'Voice Note' : 'Audio'}\n` +
+            `╚━━━━━━━━━━━━━━━━━═❒`
         }, { quoted: m })
 
         return await sock.sendMessage(from, { react: { text: '✅', key: m.key } })
