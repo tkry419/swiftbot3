@@ -1,140 +1,59 @@
 /**
- * SwiftBot - plugins/commands/automation/autolikestatus.js
- * Auto Like Status Manager - Full Control
- * Set targets, mode - Owner only
+ * SwiftBot - plugins/observers/autolikestatus.js
+ * Auto Like Status Observer - Full Control
+ * Matches autolikestatus.js command settings
+ * Category: Automation
  */
 
 export default {
   name: 'autolikestatus',
-  alias: ['alikestatus', 'autolike', 'likestatus', 'als'],
-  desc: 'Control auto like status globally or per target',
-  usage: '[on/off/status] [global/all/specific] [number]',
+  event: 'messages.upsert',
+  desc: 'Auto likes status updates based on DB settings',
   category: 'Automation',
-  permission: 'owner',
+  enabled: true,
 
-  execute: async (sock, m, args, { db, prefix, isOwner }) => {
-    const from = m.key.remoteJid
+  execute: async (sock, m, { db, logger }) => {
+    try {
+      // Only handle status broadcasts
+      if (m.key.remoteJid!== 'status@broadcast') return
+      if (m.key.fromMe) return
+      if (!m.message) return
 
-    if (!isOwner) {
-      return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Owner only command\n╚━━━━━━━━━━━━━━━━━═❒`
-      }, { quoted: m })
-    }
+      const sender = m.key.participant || m.key.remoteJid
 
-    const action = args[0]?.toLowerCase()
-    const target = args[1]?.toLowerCase()
-    const value = args[2]
-
-    // STATUS
-    if (!action || action === 'status' || action === 'info') {
+      // Load settings from DB
       const [
-        likeStatus, users, allEnabled
+        likeEnabled,
+        usersWhitelist,
+        allEnabled
       ] = await Promise.all([
         db.get('autolikestatus'),
         db.get('autolikestatusUsers'),
         db.get('autolikestatusAll')
       ])
 
-      const userList = users?.length? users.map(u => u.split('@')[0]).join(', ') : 'None'
+      if (!likeEnabled) return
 
-      return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒
-║ ❤️ AUTO LIKE STATUS
-╠═══════════════════
-║ Like Status: ${likeStatus? '🟢 ON' : '🔴 OFF'}
-║
-║ 📍 TARGETS:
-║ All Contacts: ${allEnabled!== false? '✅ ON' : '❌ OFF'}
-║ Specific Users: ${users?.length || 0}
-║ ${users?.length? '𖠁 ' + userList : ''}
-╠═══════════════════
-║ 📝 USAGE:
-║ ${prefix}als on global
-║ ${prefix}als on all
-║ ${prefix}als on user 255712345678
-║ ${prefix}als off global
-║ ${prefix}als add user 255xxx
-║ ${prefix}als del user 255xxx
-║ ${prefix}als clear
-╚━━━━━━━━━━━━━━━━━═❒`
-      }, { quoted: m })
-    }
-
-    // ON / OFF
-    if (action === 'on' || action === 'enable') {
-      if (!target || target === 'global' || target === 'all') {
-        await db.set('autolikestatus', true)
-        await db.set('autolikestatusAll', true)
-        return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Like Status Enabled\n║ Mode: GLOBAL\n║ Target: All Status\n╚━━━━━━━━━━━━━━━━━═❒`
-        }, { quoted: m })
+      // Check if all contacts enabled
+      if (allEnabled === false) {
+        // If specific users list exists, check if sender is in it
+        if (usersWhitelist?.length > 0 &&!usersWhitelist.includes(sender)) return
+        // If no whitelist and all is false, skip
+        if (!usersWhitelist?.length) return
       }
 
-      if (target === 'user') {
-        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
-        const users = await db.get('autolikestatusUsers') || []
-        if (!users.includes(userJid)) {
-          users.push(userJid)
-          await db.set('autolikestatusUsers', users)
+      // React with heart emoji to status
+      await sock.sendMessage('status@broadcast', {
+        react: {
+          text: '❤️',
+          key: m.key
         }
-        await db.set('autolikestatus', true)
-        await db.set('autolikestatusAll', false)
-        return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Like Status Enabled\n║ Target: ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
-        }, { quoted: m })
-      }
-    }
+      }, {
+        statusJidList: [sender]
+      })
 
-    // OFF / DISABLE
-    if (action === 'off' || action === 'disable') {
-      if (!target || target === 'global' || target === 'all') {
-        await db.set('autolikestatus', false)
-        return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Auto Like Status Disabled\n║ Mode: GLOBAL OFF\n╚━━━━━━━━━━━━━━━━━═❒`
-        }, { quoted: m })
-      }
+    } catch (e) {
+      logger.error('AUTOLIKESTATUS_OBSERVER', 'Failed to like status', e.message)
     }
-
-    // ADD
-    if (action === 'add') {
-      if (target === 'user') {
-        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
-        const users = await db.get('autolikestatusUsers') || []
-        if (!users.includes(userJid)) {
-          users.push(userJid)
-          await db.set('autolikestatusUsers', users)
-        }
-        await db.set('autolikestatusAll', false)
-        return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ User Added\n║ ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
-        }, { quoted: m })
-      }
-    }
-
-    // DEL / REMOVE
-    if (action === 'del' || action === 'remove' || action === 'delete') {
-      if (target === 'user') {
-        const userJid = value?.includes('@')? value : `${value}@s.whatsapp.net`
-        let users = await db.get('autolikestatusUsers') || []
-        users = users.filter(u => u!== userJid)
-        await db.set('autolikestatusUsers', users)
-        return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ User Removed\n║ ${value}\n╚━━━━━━━━━━━━━━━━━═❒`
-        }, { quoted: m })
-      }
-    }
-
-    // CLEAR ALL
-    if (action === 'clear' || action === 'reset') {
-      await db.set('autolikestatusUsers', [])
-      return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🗑️ All Targets Cleared\n║ Whitelist reset\n╚━━━━━━━━━━━━━━━━━═❒`
-      }, { quoted: m })
-    }
-
-    // INVALID
-    await sock.sendMessage(from, {
-      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Invalid command\n║ Use: ${prefix}als status\n╚━━━━━━━━━━━━━━━━━═❒`
-    }, { quoted: m })
   }
 }
