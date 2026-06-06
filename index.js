@@ -20,6 +20,7 @@ import { initLoader } from './system/loader.js'
 import { routeMessage, routeEvent } from './system/router.js'
 import { box } from './system/box.js'
 import { fonts } from './system/fonts.js'
+import { init as initSmartChannel } from './plugins/observers/automations/smartchannel.js' // ADDED: SmartChannel init
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -303,6 +304,10 @@ async function startBot() {
 
       await sendConnectedMsg(sock)
       startRamCleanup()
+
+      // ADDED: Initialize SmartChannel auto posting
+      initSmartChannel(sock, db, logger)
+
       isStarting = false
     }
   })
