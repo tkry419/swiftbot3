@@ -68,6 +68,168 @@ export const DEFAULTS = {
   // Economy / XP (optional, can be disabled)
   economyEnabled: false,
   xpEnabled: false,
+
+  // ─── AUTO LIKE STATUS ───
+  autolikestatus: false,
+  autolikestatusAll: false,
+  autolikestatusUsers: [],
+
+  // ─── ANTI LINK ───
+  antilink: false,
+  antilinkAction: 'delete',
+  antilinkGroupsEnabled: false,
+  antilinkGroups: [],
+  antilinkWhitelist: [],
+
+  // ─── ANTI BAD WORDS ───
+  antibadwords: false,
+  antibadwordsAction: 'delete',
+  antibadwordsGroupsEnabled: false,
+  antibadwordsGroups: [],
+  antibadwordsWhitelist: [],
+  antibadwordsList: [],
+
+  // ─── ANTI SPAM ───
+  antispam: false,
+  antispamAction: 'delete',
+  antispamLimit: 5,
+  antispamWindow: 10,
+  antispamGroupsEnabled: false,
+  antispamGroups: [],
+  antispamWhitelist: [],
+
+  // ─── ANTI STICKER ───
+  antisticker: false,
+  antistickerAction: 'delete',
+  antistickerGroupsEnabled: false,
+  antistickerGroups: [],
+  antistickerWhitelist: [],
+
+  // ─── ANTI VIDEO ───
+  antivideo: false,
+  antivideoAction: 'delete',
+  antivideoGroupsEnabled: false,
+  antivideoGroups: [],
+  antivideoWhitelist: [],
+
+  // ─── ANTI MESSAGES ───
+  antimessages: false,
+  antimessagesMode: 'blocked',
+  antimessagesGroupsEnabled: false,
+  antimessagesGroups: [],
+  antimessagesBlocked: [],
+  antimessagesWhitelist: [],
+
+  // ─── ANTI AUDIO ───
+  antiaudio: false,
+  antiaudioAction: 'delete',
+  antiaudioGroupsEnabled: false,
+  antiaudioGroups: [],
+  antiaudioWhitelist: [],
+
+  // ─── ANTI EMOJI ───
+  antiemoji: false,
+  antiemojiAction: 'delete',
+  antiemojiLimit: 10,
+  antiemojiGroupsEnabled: false,
+  antiemojiGroups: [],
+  antiemojiWhitelist: [],
+
+  // ─── ANTI BOTS ───
+  antibots: false,
+  antibotsAction: 'delete',
+  antibotsGroupsEnabled: false,
+  antibotsGroups: [],
+  antibotsList: [],
+  antibotsWhitelist: [],
+
+  // ─── ANTI STATUS MENTION ───
+  antistatusmention: false,
+  antistatusmentionAction: 'delete',
+  antistatusmentionWhitelist: [],
+  antistatusmentionBlocked: [],
+
+  // ─── ANTI TAG ───
+  antitag: false,
+  antitagAction: 'delete',
+  antitagLimit: 5,
+  antitagGroupsEnabled: false,
+  antitagGroups: [],
+  antitagWhitelist: [],
+
+  // ─── ANTI AUTOLIKE ───
+  antiautolike: false,
+  antiautolikeAction: 'block',
+  antiautolikeThreshold: 5,
+  antiautolikeBlocked: [],
+  antiautolikeWhitelist: [],
+  antiautolikeStats: { blocked: 0 },
+
+  // ─── ANTI REACT ───
+  antireact: false,
+  antireactAction: 'delete',
+  antireactThreshold: 8,
+  antireactGroupsEnabled: false,
+  antireactGroups: [],
+  antireactBlocked: [],
+  antireactWhitelist: [],
+  antireactStats: { blocked: 0 },
+
+  // ─── AUTO SMART GROUP MANAGER (ASGM) ───
+  asgm_enabled: false,
+  asgm_mode: 'smart',
+  asgm_groups_enabled: false,
+  asgm_groups: [],
+  asgm_nightmode: false,
+  asgm_night_time: '22:00',
+  asgm_morning_time: '06:00',
+  asgm_autoapprove: false,
+  asgm_autogreet: false,
+  asgm_linkfilter: false,
+  asgm_spamdetect: false,
+  asgm_botdetect: false,
+  asgm_blocked: [],
+  asgm_whitelist: [],
+  asgm_stats: { blocked: 0 },
+
+  // ─── SMART CHANNEL ───
+  GROQ_API_KEY: null,
+  sc_enabled: false,
+  sc_channel_jid: '120363426850850275@newsletter',
+  sc_channel_link: 'https://whatsapp.com/channel/0029Vb86btmI1rci3S1NUA0G',
+  sc_pair_link: 'pair.swiftbot.gt.tc',
+  sc_interval: 300000,
+  sc_autoreply: false,
+  sc_autoreact: false,
+  sc_changename: false,
+  sc_changepic: false,
+  sc_last_post: 0,
+  sc_stats: { posts: 0, replies: 0, reactions: 0, names: 0, pics: 0 },
+
+  // ─── SMART CHAT BOT ───
+  scb_enabled: false,
+  scb_mode: 'friendly',
+  scb_reply_dms: false,
+  scb_reply_groups: false,
+  scb_reply_mentions: false,
+  scb_personality: 'friendly, helpful, human-like, acts as the number owner',
+  scb_language: 'auto',
+  scb_whitelist: [],
+  scb_stats: { replies: 0, dms: 0, groups: 0 },
+
+  // ─── SMART GUARD ───
+  sg_enabled: false,
+  sg_mode: 'adaptive',
+  sg_groups_enabled: false,
+  sg_groups: [],
+  sg_spam_level: 'medium',
+  sg_bot_level: 'medium',
+  sg_toxic_level: 'medium',
+  sg_raid_level: 'medium',
+  sg_link_level: 'smart',
+  sg_whitelist: [],
+  sg_banlist: [],
+  sg_stats: { scanned: 0, blocked: 0, kicked: 0, warned: 0, links: 0 },
 }
 
 // ─────────────────────────────────────────────
