@@ -1,41 +1,62 @@
 /**
  * SwiftBot - plugins/commands/anime/animechar.js
  * Search Anime Character Info - Name, Anime, Bio, Pic
- * Owner/Public - 10 Fallback sources
+ * Owner/Public - 6 Working Fallback sources
  */
 
 import axios from 'axios'
 
-// 10 REAL CHARACTER SOURCES
+// 6 REAL WORKING CHARACTER SOURCES 2026
 const SOURCES = [
-  { name: 'jikan', url: 'https://api.jikan.moe/v4/characters?q=', key: 'data[0]' },
-  { name: 'kitsu', url: 'https://kitsu.io/api/edge/characters?filter[name]=', key: 'data[0]' },
-  { name: 'anilist', url: 'https://graphql.anilist.co', key: null, graphql: true },
-  { name: 'mal', url: 'https://api.myanimelist.net/v2/characters?q=', key: 'data[0]' },
-  { name: 'anidb', url: 'https://api.anidb.net/v1/character/search?name=', key: 'data[0]' },
-  { name: 'waifu-im', url: 'https://api.waifu.im/search/?included_tags=', key: 'images[0]' },
-  { name: 'nekos-best', url: 'https://nekos.best/api/v2/search?query=', key: 'results[0]' },
-  { name: 'shiro', url: 'https://api.shirobot.org/v1/images/character?name=', key: null },
-  { name: 'kyoko', url: 'https://api.kyoko.wtf/api/character?name=', key: null },
-  { name: 'purrbot', url: 'https://purrbot.site/api/img/sfw/character?name=', key: null }
+  {
+    name: 'jikan',
+    url: 'https://api.jikan.moe/v4/characters?q=',
+    headers: { 'User-Agent': 'SwiftBot/3.2' }
+  },
+  {
+    name: 'kitsu',
+    url: 'https://kitsu.io/api/edge/characters?filter[name]=',
+    headers: { 'Accept': 'application/vnd.api+json' }
+  },
+  {
+    name: 'anilist',
+    url: 'https://graphql.anilist.co',
+    graphql: true
+  },
+  {
+    name: 'anify',
+    url: 'https://anify.eltik.cc/character/',
+    headers: {}
+  },
+  {
+    name: 'animeapi',
+    url: 'https://anime-api-site.vercel.app/api/character?name=',
+    headers: {}
+  },
+  {
+    name: 'consumet',
+    url: 'https://api.consumet.org/meta/anilist/character/',
+    headers: {}
+  }
 ]
 
 const ANILIST_QUERY = `
 query ($search: String) {
   Character (search: $search) {
     name { full native }
-    description
+    description(asHtml: false)
     image { large }
     age
     gender
     dateOfBirth { year month day }
-    media(sort: POPULARITY_DESC) {
+    media(sort: POPULARITY_DESC, perPage: 1) {
       edges {
         node {
           title { romaji english }
         }
       }
     }
+    favourites
   }
 }
 `
@@ -43,23 +64,23 @@ query ($search: String) {
 async function fetchCharacter(query, logger) {
   for (const source of SOURCES) {
     try {
-      let res, data
+      let data = null
 
       if (source.graphql) {
-        res = await axios.post(source.url, {
+        const { data: res } = await axios.post(source.url, {
           query: ANILIST_QUERY,
           variables: { search: query }
         }, {
-          timeout: 8000,
+          timeout: 10000,
           headers: { 'User-Agent': 'SwiftBot/3.2' }
         })
-        data = res.data?.data?.Character
+        data = res?.data?.Character
       } else {
-        res = await axios.get(source.url + encodeURIComponent(query), {
-          timeout: 8000,
-          headers: { 'User-Agent': 'SwiftBot/3.2' }
+        const { data: res } = await axios.get(source.url + encodeURIComponent(query), {
+          timeout: 10000,
+          headers: source.headers
         })
-        data = res.data
+        data = res
       }
 
       if (!data) continue
@@ -73,22 +94,22 @@ async function fetchCharacter(query, logger) {
           name: d.name || 'Unknown',
           name_jp: d.name_kanji,
           bio: d.about,
-          image: d.images?.jpg?.image_url,
-          anime: d.anime?.[0]?.anime?.title,
+          image: d.images?.jpg?.image_url || d.images?.webp?.image_url,
+          anime: d.anime?.[0]?.anime?.title || d.anime?.[0]?.title,
           favorites: d.favorites,
-          nicknames: d.nicknames?.join(', ')
+          nicknames: d.nicknames?.length? d.nicknames.join(', ') : null
         }
       }
       else if (source.name === 'kitsu') {
         const d = data.data?.[0]?.attributes
         if (d) char = {
-          name: d.name || d.canonicalName || 'Unknown',
-          name_jp: d.names?.ja_jp,
+          name: d.canonicalName || d.name || 'Unknown',
+          name_jp: d.names?.ja_jp || d.names?.ja,
           bio: d.description,
-          image: d.image?.original,
+          image: d.image?.original || d.image?.large,
           anime: null,
           favorites: null,
-          nicknames: d.otherNames?.join(', ')
+          nicknames: d.otherNames?.length? d.otherNames.join(', ') : null
         }
       }
       else if (source.name === 'anilist') {
@@ -96,36 +117,39 @@ async function fetchCharacter(query, logger) {
         if (d) char = {
           name: d.name?.full || 'Unknown',
           name_jp: d.name?.native,
-          bio: d.description?.replace(/<[^>]*>/g, ''),
+          bio: d.description,
           image: d.image?.large,
           anime: d.media?.edges?.[0]?.node?.title?.english || d.media?.edges?.[0]?.node?.title?.romaji,
-          favorites: null,
+          favorites: d.favourites,
           nicknames: null,
           age: d.age,
           gender: d.gender,
-          birth: d.dateOfBirth?.year? `${d.dateOfBirth.year}-${d.dateOfBirth.month}-${d.dateOfBirth.day}` : null
+          birth: d.dateOfBirth?.year? `${d.dateOfBirth.year}-${String(d.dateOfBirth.month).padStart(2,'0')}-${String(d.dateOfBirth.day).padStart(2,'0')}` : null
         }
       }
-      else if (source.name === 'waifu-im') {
-        const d = data.images?.[0]
+      else if (source.name === 'anify' || source.name === 'animeapi' || source.name === 'consumet') {
+        const d = data[0] || data.results?.[0] || data
         if (d) char = {
-          name: d.tags?.[0]?.name || query,
-          name_jp: null,
-          bio: d.description,
-          image: d.url,
-          anime: d.source,
-          favorites: null,
-          nicknames: null
+          name: d.name || d.title || 'Unknown',
+          name_jp: d.name_kanji || d.japaneseName || d.native,
+          bio: d.about || d.description || d.bio,
+          image: d.image || d.imageUrl || d.images?.large,
+          anime: d.anime || d.from || d.media?.[0]?.title,
+          favorites: d.favorites || d.favourites,
+          nicknames: d.nicknames?.join?.(', ') || d.aliases?.join?.(', '),
+          age: d.age,
+          gender: d.gender,
+          birth: d.birthday || d.birth
         }
       }
 
-      if (char && char.name!== 'Unknown') {
+      if (char && char.name && char.name!== 'Unknown') {
         logger?.info('ANIMECHAR', `Found from ${source.name}`)
         return char
       }
 
     } catch (e) {
-      logger?.warn('ANIMECHAR', `${source.name} failed`)
+      logger?.warn('ANIMECHAR', `${source.name} failed: ${e.message}`)
       continue
     }
   }
@@ -140,12 +164,12 @@ export default {
   category: 'Anime',
   permission: 'public',
 
-  execute: async (sock, m, args, { logger }) => {
+  execute: async (sock, m, args, { prefix, logger }) => {
     const from = m.key.remoteJid
 
     if (!args[0]) {
       return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Enter character name\n║ Example:.ac Naruto +pic\n╚━━━━━━━━━━━━━━━━━═❒`
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Enter character name\n║ Example: ${prefix}ac Naruto +pic\n╚━━━━━━━━━━━━━━━━━═❒`
       }, { quoted: m })
     }
 
@@ -155,7 +179,7 @@ export default {
 
     if (!query) {
       return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Enter character name\n║ Example:.ac Naruto +pic\n╚━━━━━━━━━━━━━━━━━═❒`
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Enter character name\n║ Example: ${prefix}ac Naruto +pic\n╚━━━━━━━━━━━━━━━━━═❒`
       }, { quoted: m })
     }
 
@@ -191,7 +215,7 @@ export default {
 
       info += `\n╠═══════════════════
 ║ 📝 BIO:
-║ ${char.bio? char.bio.slice(0, 500) + '...' : 'N/A'}
+║ ${char.bio? char.bio.replace(/<[^>]*>/g, '').slice(0, 500).trim() + '...' : 'N/A'}
 ╚━━━━━━━━━━━━━━━━━═❒`
 
       // Send with pic if requested
