@@ -1,81 +1,68 @@
 /**
  * SwiftBot - plugins/commands/tools/tts.js
- * Text to Speech - Google TTS
+ * Text to Speech - Google TTS Direct
  * Male/Female/Robot voices - 15 fallbacks
- * English only - vs Bot
+ * No external deps except node-fetch
  */
 
-import googleTTS from 'google-tts-api'
 import fetch from 'node-fetch'
 
-const VOICE_FALLBACKS = [
-  { lang: 'en', slow: false, host: 'https://translate.google.com' },
-  { lang: 'en-US', slow: false, host: 'https://translate.google.com' },
-  { lang: 'en-GB', slow: false, host: 'https://translate.google.com' },
-  { lang: 'en-AU', slow: false, host: 'https://translate.google.com' },
-  { lang: 'en-IN', slow: false, host: 'https://translate.google.com' },
-  { lang: 'en', slow: true, host: 'https://translate.google.com' },
-  { lang: 'en-US', slow: true, host: 'https://translate.google.com' },
-  { lang: 'en-GB', slow: true, host: 'https://translate.google.com' },
-  { lang: 'en', slow: false, host: 'https://translate.google.cn' },
-  { lang: 'en-US', slow: false, host: 'https://translate.google.cn' },
-  { lang: 'fr', slow: false, host: 'https://translate.google.com' },
-  { lang: 'es', slow: false, host: 'https://translate.google.com' },
-  { lang: 'de', slow: false, host: 'https://translate.google.com' },
-  { lang: 'it', slow: false, host: 'https://translate.google.com' },
-  { lang: 'pt', slow: false, host: 'https://translate.google.com' }
+const VOICE_SERVERS = [
+  'https://translate.google.com',
+  'https://translate.google.cn',
+  'https://translate.google.com.sg',
+  'https://translate.google.co.uk',
+  'https://translate.google.com.au'
 ]
 
+const VOICE_CONFIGS = [
+  { lang: 'en', slow: false },
+  { lang: 'en-US', slow: false },
+  { lang: 'en-GB', slow: false },
+  { lang: 'en-AU', slow: false },
+  { lang: 'en-IN', slow: false },
+  { lang: 'en', slow: true },
+  { lang: 'en-US', slow: true },
+  { lang: 'en-GB', slow: true },
+  { lang: 'en-AU', slow: true },
+  { lang: 'en-IN', slow: true },
+  { lang: 'en-CA', slow: false },
+  { lang: 'en-IE', slow: false },
+  { lang: 'en-ZA', slow: false },
+  { lang: 'en-NG', slow: false },
+  { lang: 'en-PH', slow: false }
+]
+
+function buildTTSUrl(text, lang, slow, host) {
+  const encoded = encodeURIComponent(text)
+  return `${host}/translate_tts?ie=UTF-8&q=${encoded}&tl=${lang}&client=tw-ob&ttsspeed=${slow? '0.24' : '1'}`
+}
+
 async function getTTS(text, voiceType) {
-  const voiceMap = {
-    'male': { lang: 'en', slow: false },
-    'female': { lang: 'en', slow: false },
-    'robot': { lang: 'en', slow: true }
-  }
+  const slowMode = voiceType === 'robot'
 
-  const config = voiceMap[voiceType] || voiceMap['female']
+  // Try all combinations
+  for (const server of VOICE_SERVERS) {
+    for (const config of VOICE_CONFIGS) {
+      try {
+        const url = buildTTSUrl(text, config.lang, slowMode || config.slow, server)
 
-  // Try primary first
-  try {
-    const url = googleTTS.getAudioUrl(text, {
-      lang: config.lang,
-      slow: config.slow,
-      host: 'https://translate.google.com'
-    })
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://translate.google.com/'
+          },
+          timeout: 10000
+        })
 
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        if (!res.ok) continue
+
+        const buffer = await res.buffer()
+        if (buffer.length > 100) return buffer
+
+      } catch {
+        continue
       }
-    })
-
-    if (res.ok) {
-      const buffer = await res.arrayBuffer()
-      if (buffer.byteLength > 100) return buffer
-    }
-  } catch {}
-
-  // Try all 15 fallbacks
-  for (const fallback of VOICE_FALLBACKS) {
-    try {
-      const url = googleTTS.getAudioUrl(text, {
-        lang: fallback.lang,
-        slow: fallback.slow,
-        host: fallback.host
-      })
-
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      })
-
-      if (res.ok) {
-        const buffer = await res.arrayBuffer()
-        if (buffer.byteLength > 100) return buffer
-      }
-    } catch {
-      continue
     }
   }
   throw new Error('ALL_FAILED')
@@ -91,7 +78,7 @@ export default {
 
   execute: async (sock, m, args, { db }) => {
     const from = m.key.remoteJid
-    const prefix = await db.get('prefix')
+    const prefix = await db.get('prefix') || '.'
 
     const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage
     const quotedText = quoted?.conversation || quoted?.extendedTextMessage?.text || ''
@@ -139,7 +126,7 @@ export default {
       const audioBuffer = await getTTS(text, voiceType)
 
       await sock.sendMessage(from, {
-        audio: Buffer.from(audioBuffer),
+        audio: audioBuffer,
         mimetype: 'audio/mpeg',
         ptt: false
       }, { quoted: m })
