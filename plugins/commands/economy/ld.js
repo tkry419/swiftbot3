@@ -1,7 +1,7 @@
 /**
  * SwiftBot - plugins/commands/economy/leaderboard.js
  * Group-Based SVG Leaderboard with Profile Pictures - Using SHARP
- * Uses db keys: eco_${groupJid}_balance_${user}, eco_${groupJid}_bank_${user}
+ * Fixed: Shows proper names instead of LID
  */
 
 import sharp from 'sharp'
@@ -20,9 +20,18 @@ const getGlowColor = (rank) => {
   return colors[rank] || '#00E676'
 }
 
+const escapeXml = (str) => {
+  return String(str)
+   .replace(/&/g, '&amp;')
+   .replace(/</g, '&lt;')
+   .replace(/>/g, '&gt;')
+   .replace(/"/g, '&quot;')
+   .replace(/'/g, '&apos;')
+}
+
 const downloadAndRoundPfp = async (url) => {
   try {
-    const response = await axios.get(url, { responseType: 'arraybuffer' })
+    const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 5000 })
     const buffer = Buffer.from(response.data)
     const image = await Jimp.read(buffer)
     image.resize(56, 56)
@@ -56,30 +65,34 @@ const generateLeaderboardSVG = (users, groupName, currency) => {
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-opacity="0.7"/>
+    </filter>
   </defs>
 
   <rect width="100%" height="100%" fill="url(#bgGlow)"/>
   <circle cx="100" cy="100" r="150" fill="#00E676" opacity="0.05"/>
   <circle cx="700" cy="500" r="200" fill="#4FC3F7" opacity="0.05"/>
 
-  <text x="400" y="60" font-family="Arial Black" font-size="36" fill="#fff" text-anchor="middle">🏆 LEADERBOARD 🏆</text>
-  <text x="400" y="90" font-family="Arial" font-size="18" fill="#00E676" text-anchor="middle">${groupName}</text>`
+  <text x="400" y="60" font-family="Arial Black" font-size="36" fill="#fff" text-anchor="middle" filter="url(#shadow)">🏆 LEADERBOARD 🏆</text>
+  <text x="400" y="90" font-family="Arial" font-size="18" fill="#00E676" text-anchor="middle" filter="url(#shadow)">${escapeXml(groupName)}</text>`
 
   topUsers.forEach((user, index) => {
     const y = 140 + index * 90
     const glowColor = getGlowColor(index)
     const medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][index]
+    const displayName = escapeXml(user.name.slice(0, 20))
 
     svgContent += `
-  <rect x="50" y="${y}" width="700" height="75" rx="15" fill="#1e1e2e" stroke="${glowColor}" stroke-width="2" opacity="0.9"/>
+  <rect x="50" y="${y}" width="700" height="75" rx="15" fill="#1e1e2e" stroke="${glowColor}" stroke-width="2" opacity="0.95" filter="url(#shadow)"/>
   <text x="90" y="${y + 48}" font-family="Arial Black" font-size="32" fill="${glowColor}">${medal}</text>
   <circle cx="170" cy="${y + 37}" r="30" fill="${glowColor}" opacity="0.3"/>
   <circle cx="170" cy="${y + 37}" r="28" fill="none" stroke="${glowColor}" stroke-width="2"/>
-  <text x="220" y="${y + 32}" font-family="Arial" font-size="22" fill="#fff" font-weight="bold">${user.name.slice(0, 20)}</text>
+  <text x="220" y="${y + 32}" font-family="Arial" font-size="22" fill="#fff" font-weight="bold">${displayName}</text>
   <text x="220" y="${y + 58}" font-family="Arial" font-size="16" fill="${glowColor}">💰 ${currency}${formatCash(user.total)}</text>
   <text x="550" y="${y + 32}" font-family="Arial" font-size="14" fill="#888" text-anchor="end">Cash: ${currency}${formatCash(user.balance)}</text>
   <text x="550" y="${y + 58}" font-family="Arial" font-size="14" fill="#888" text-anchor="end">Bank: ${currency}${formatCash(user.bank)}</text>
-  <rect x="680" y="${y + 20}" width="50" height="35" rx="10" fill="${glowColor}" opacity="0.2"/>
+  <rect x="680" y="${y + 20}" width="50" height="35" rx="10" fill="${glowColor}" opacity="0.3"/>
   <text x="705" y="${y + 43}" font-family="Arial Black" font-size="20" fill="${glowColor}" text-anchor="middle">#${index + 1}</text>`
   })
 
@@ -101,41 +114,7 @@ export default {
   execute: async (sock, m, args, { db, prefix, isGroup }) => {
     const from = m.key.remoteJid
 
-    // 1. CHECK IF ECONOMY ENABLED
-    if (isGroup) {
-      const ecoEnabled = await db.getGroupKey(from, 'eco_enabled')
-      if (!ecoEnabled) {
-        return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ᴇᴄᴏɴᴏᴍʏ ᴅɪsᴀʙʟᴇᴅ
-┃
-┃➠ ᴀsᴋ ᴀᴅᴍɪɴ ᴛᴏ ᴇɴᴀʙʟᴇ:
-┃➠ ${prefix}ecoon
-╚═══════════════════╝`
-        }, { quoted: m })
-      }
-    }
-
-    const groupId = isGroup? from : 'global'
-    const currency = await db.getGroupKey(groupId, 'eco_currency') || '$'
-
-    // 2. GET ALL USERS DATA
-    let groupName = 'Global'
-    let participants = []
-
-    if (isGroup) {
-      try {
-        const groupMetadata = await sock.groupMetadata(from)
-        groupName = groupMetadata.subject
-        participants = groupMetadata.participants.map(p => p.id)
-      } catch {
-        return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ғᴀɪʟᴇᴅ ᴛᴏ ғᴇᴛᴄʜ ɢʀᴏᴜᴘ ᴅᴀᴛᴀ
-╚═══════════════════╝`
-        }, { quoted: m })
-      }
-    } else {
+    if (!isGroup) {
       return await sock.sendMessage(from, {
         text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
 ┃➠ ᴛʜɪs ᴄᴏᴍᴀɴᴅ ᴡᴏʀᴋs
@@ -144,8 +123,43 @@ export default {
       }, { quoted: m })
     }
 
-    // 3. FETCH ALL BALANCES & BANK
-    const userPromises = participants.map(async (userJid) => {
+    // 1. CHECK IF ECONOMY ENABLED
+    const ecoEnabled = await db.getGroupKey(from, 'eco_enabled')
+    if (!ecoEnabled) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+┃➠ ᴇᴄᴏɴᴏᴍʏ ᴅɪsᴀʙʟᴇᴅ
+┃
+┃➠ ᴀsᴋ ᴀᴅᴍɪɴ ᴛᴏ ᴇɴᴀʙʟᴇ:
+┃➠ ${prefix}ecoon
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    const groupId = from
+    const currency = await db.getGroupKey(groupId, 'eco_currency') || '$'
+
+    // 2. GET GROUP DATA
+    let groupName = 'Group'
+    let participants = []
+
+    try {
+      const groupMetadata = await sock.groupMetadata(from)
+      groupName = groupMetadata.subject
+      participants = groupMetadata.participants
+    } catch {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+┃➠ ғᴀɪʟᴇᴅ ᴛᴏ ғᴇᴛᴄʜ ɢʀᴏᴜᴘ ᴅᴀᴛᴀ
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    // 3. FETCH ALL BALANCES & BANK - FIXED NAME RESOLUTION
+    const userPromises = participants.map(async (p) => {
+      const userJid = p.id
+      const lid = p.lid || userJid // Use LID if available, fallback to JID
+
       const [balance, bank, pushname] = await Promise.all([
         db.get(`eco_${groupId}_balance_${userJid}`),
         db.get(`eco_${groupId}_bank_${userJid}`),
@@ -154,15 +168,29 @@ export default {
 
       const total = (balance || 0) + (bank || 0)
 
-      // Get profile picture
+      // Name resolution priority: DB pushname > contact notify/name > number from JID
+      let displayName = pushname || p.notify || p.name
+      if (!displayName) {
+        // Extract number from JID or LID
+        const num = userJid.includes('@')? userJid.split('@')[0] : userJid
+        displayName = num.replace(/\D/g, '').slice(-10) || 'Unknown'
+      }
+
+      // Get profile picture - try JID first, then LID
       let pfp = 'https://i.imgur.com/2wOJD6K.png'
       try {
         pfp = await sock.profilePictureUrl(userJid, 'image')
-      } catch {}
+      } catch {
+        try {
+          if (lid && lid!== userJid) {
+            pfp = await sock.profilePictureUrl(lid, 'image')
+          }
+        } catch {}
+      }
 
       return {
         jid: userJid,
-        name: pushname || userJid.split('@')[0],
+        name: displayName,
         balance: balance || 0,
         bank: bank || 0,
         total,
@@ -174,8 +202,8 @@ export default {
 
     // 4. SORT BY TOTAL WEALTH
     const sortedUsers = allUsers
-    .filter(u => u.total > 0)
-    .sort((a, b) => b.total - a.total)
+     .filter(u => u.total > 0)
+     .sort((a, b) => b.total - a.total)
 
     if (sortedUsers.length === 0) {
       return await sock.sendMessage(from, {
@@ -212,9 +240,9 @@ export default {
 
     if (compositeOps.length > 0) {
       buffer = await sharp(buffer)
-      .composite(compositeOps)
-      .png()
-      .toBuffer()
+       .composite(compositeOps)
+       .png()
+       .toBuffer()
     }
 
     // 8. SEND IMAGE + TEXT
