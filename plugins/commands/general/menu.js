@@ -35,32 +35,31 @@ export default {
     const mins = Math.floor((uptime % 3600) / 60)
     const secs = Math.floor(uptime % 60)
     const mem = process.memoryUsage()
-    const used = (mem.heapUsed / 1024 / 1024).toFixed(1)
+    const used = (mem.heapUsed / 1024).toFixed(1)
     const total = (mem.heapTotal / 1024 / 1024).toFixed(1)
     const ramPercent = Math.floor((mem.heapUsed / mem.heapTotal) * 100)
     const ramBars = '▣'.repeat(Math.floor(ramPercent / 20)) + '□'.repeat(5 - Math.floor(ramPercent / 20))
     const speed = (Math.random() * 150 + 50).toFixed(4)
 
-    // HEADER - IMPERIAL STYLE
+    // HEADER - NEW BOX STYLE
     let msg = `
-╔═━━━━━━━━━━━━━━━━═❒
-║    ${botname.toUpperCase()}
-╚━━━━━━━━━━━━━━━━━═❒
-╔═━━━━━━━━━━━━━━━━═❒
-║ 𖠁 *𝕻𝖗𝖊𝖋𝖎𝖝:* [ ${prefix} ]
-║ 𖠁 *𝕺𝖜𝖓𝖊𝖗:* ${ownerName || owner || 'Not Set'}
-║ 𖠁 *𝕮𝖗𝖊𝖉𝖎𝖙:* ${credit || 'SwiftBot Tech'}
-║ 𖠁 *𝕸𝖔𝖉𝖊:* ${mode?.toUpperCase() || 'PUBLIC'}
-║ 𖠁 *𝕻𝖑𝖆𝖙𝖋𝖔𝖗𝖒:* ${platform || 'whatsapp'}
-║ 𖠁 *𝖘𝖕𝖊𝖉:* ${speed} Ms
-║ 𖠁 *𝖚𝖕𝖙𝖎𝖒𝖊:* ${days}d ${hours}h ${mins}m ${secs}s
-║ 𖠁 *𝖁𝖊𝖗𝖘𝖎𝖔𝖒:* ${version || '3.2.0'}
-║ 𖠁 *𝕽𝖆𝖒:* ${ramBars} ${ramPercent}%
-║ 𖠁 *𝖀𝖘𝖆𝖌𝖊:* ${used}MB of ${total}MB
-╚━━━━━━━━━━━━━━━━━═❒
+╔═〘 ${botname.toUpperCase()} 〙═╗
+╚═══════════════════╝
+╔═〘 ᴅᴇᴛᴀɪʟs 〙═╗
+┃➠ ᴘʀᴇғɪx: [ ${prefix} ]
+┃➠ ᴏᴡɴᴇʀ: ${ownerName || owner || 'Not Set'}
+┃➠ ᴄʀᴇᴅɪᴛ: ${credit || 'SwiftBot Tech'}
+┃➠ ᴍᴏᴅᴇ: ${mode?.toUpperCase() || 'PUBLIC'}
+┃➠ ᴘʟᴀᴛғᴏʀᴍ: ${platform || 'whatsapp'}
+┃➠ sᴘᴇᴇᴅ: ${speed} Ms
+┃➠ ᴜᴘᴛɪᴍᴇ: ${days}d ${hours}h ${mins}m ${secs}s
+┃➠ ᴠᴇʀsɪᴏɴ: ${version || '3.2.0'}
+┃➠ ʀᴀᴍ: ${ramBars} ${ramPercent}%
+┃➠ ᴜsᴀɢᴇ: ${used}MB of ${total}MB
+╚═══════════════════╝
 `
 
-    // ALL CATEGORIES + COMMANDS - KUSHUKA DESIGN
+    // ALL CATEGORIES + COMMANDS - NEW BOX STYLE
     const categories = getAllCategories()
 
     for (const cat of categories) {
@@ -68,15 +67,14 @@ export default {
       if (!cmds.length) continue
 
       msg += `
-╔═━━━━━━━━━━━━━━━━═❒
-║ ⌬ *${cat.name.toUpperCase()} MENU* ⌬
+╔═〘 ${cat.name.toUpperCase()} ᴍᴇɴᴜ 〙═╗
 `
       // Commands zote za category hii - NAME ONLY
       cmds.forEach(cmd => {
-        msg += `║ 𖠁 .${cmd.name}\n`
+        msg += `┃➠ ${prefix}${cmd.name}\n`
       })
 
-      msg += `╚━━━━━━━━━━━━━━━━━═❒`
+      msg += `╚═══════════════════╝`
     }
 
     await sock.sendMessage(from, {
