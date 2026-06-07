@@ -1,6 +1,7 @@
 /**
  * SwiftBot - plugins/commands/economy/sell.js
  * Group-Based Item Selling System - 60% Resale Value
+ * BLOCKS: Backgrounds are permanent, cannot sell
  * Uses db keys: eco_${groupJid}_inv_${user}_${item}, eco_${groupJid}_balance_${user}
  */
 
@@ -57,7 +58,37 @@ const DEFAULT_ITEMS = {
     price: 25000,
     emoji: '💍',
     category: 'luxury'
-  }
+  },
+  // BACKGROUNDS - CANNOT SELL
+  'bg_cyber': { name: 'Cyber Background', price: 5000, emoji: '🎨', category: 'backgrounds', bgKey: 'cyber' },
+  'bg_neon': { name: 'Neon Background', price: 5000, emoji: '🎨', category: 'backgrounds', bgKey: 'neon' },
+  'bg_sunset': { name: 'Sunset Background', price: 8000, emoji: '🌅', category: 'backgrounds', bgKey: 'sunset' },
+  'bg_ocean': { name: 'Ocean Background', price: 8000, emoji: '🌊', category: 'backgrounds', bgKey: 'ocean' },
+  'bg_forest': { name: 'Forest Background', price: 8000, emoji: '🌲', category: 'backgrounds', bgKey: 'forest' },
+  'bg_galaxy': { name: 'Galaxy Background', price: 15000, emoji: '🌌', category: 'backgrounds', bgKey: 'galaxy' },
+  'bg_fire': { name: 'Fire Background', price: 10000, emoji: '🔥', category: 'backgrounds', bgKey: 'fire' },
+  'bg_ice': { name: 'Ice Background', price: 10000, emoji: '❄️', category: 'backgrounds', bgKey: 'ice' },
+  'bg_gold': { name: 'Gold Background', price: 25000, emoji: '👑', category: 'backgrounds', bgKey: 'gold' },
+  'bg_silver': { name: 'Silver Background', price: 20000, emoji: '🥈', category: 'backgrounds', bgKey: 'silver' },
+  'bg_purple': { name: 'Purple Background', price: 12000, emoji: '🟣', category: 'backgrounds', bgKey: 'purple' },
+  'bg_red': { name: 'Red Background', price: 10000, emoji: '🔴', category: 'backgrounds', bgKey: 'red' },
+  'bg_blue': { name: 'Blue Background', price: 10000, emoji: '🔵', category: 'backgrounds', bgKey: 'blue' },
+  'bg_green': { name: 'Green Background', price: 10000, emoji: '🟢', category: 'backgrounds', bgKey: 'green' },
+  'bg_pink': { name: 'Pink Background', price: 12000, emoji: '🩷', category: 'backgrounds', bgKey: 'pink' },
+  'bg_orange': { name: 'Orange Background', price: 10000, emoji: '🟠', category: 'backgrounds', bgKey: 'orange' },
+  'bg_teal': { name: 'Teal Background', price: 10000, emoji: '🩵', category: 'backgrounds', bgKey: 'teal' },
+  'bg_void': { name: 'Void Background', price: 30000, emoji: '⚫', category: 'backgrounds', bgKey: 'void' },
+  'bg_light': { name: 'Light Background', price: 15000, emoji: '⚪', category: 'backgrounds', bgKey: 'light' },
+  'bg_rainbow': { name: 'Rainbow Background', price: 20000, emoji: '🌈', category: 'backgrounds', bgKey: 'rainbow' },
+  'bg_carbon': { name: 'Carbon Background', price: 18000, emoji: '⬛', category: 'backgrounds', bgKey: 'carbon' },
+  'bg_diamond': { name: 'Diamond Background', price: 50000, emoji: '💎', category: 'backgrounds', bgKey: 'diamond' },
+  'bg_emerald': { name: 'Emerald Background', price: 40000, emoji: '💚', category: 'backgrounds', bgKey: 'emerald' },
+  'bg_ruby': { name: 'Ruby Background', price: 40000, emoji: '❤️', category: 'backgrounds', bgKey: 'ruby' },
+  'bg_sapphire': { name: 'Sapphire Background', price: 40000, emoji: '💙', category: 'backgrounds', bgKey: 'sapphire' },
+  'bg_cosmic': { name: 'Cosmic Background', price: 35000, emoji: '🌠', category: 'backgrounds', bgKey: 'cosmic' },
+  'bg_toxic': { name: 'Toxic Background', price: 15000, emoji: '☢️', category: 'backgrounds', bgKey: 'toxic' },
+  'bg_vintage': { name: 'Vintage Background', price: 12000, emoji: '📻', category: 'backgrounds', bgKey: 'vintage' },
+  'bg_future': { name: 'Future Background', price: 30000, emoji: '🚀', category: 'backgrounds', bgKey: 'future' }
 }
 
 export default {
@@ -119,12 +150,26 @@ export default {
       }, { quoted: m })
     }
 
-    // 4. DB KEYS - GROUP ISOLATED
+    // 4. BLOCK BACKGROUND SELLING - FIX
+    if (itemData.bgKey) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+┃➠ ᴄᴀɴ'ᴛ sᴇʟ ʙᴀᴄᴋɢʀᴏᴜɴᴅs
+┃
+┃➠ ɪᴛᴇᴍ: ${itemData.emoji} ${itemData.name}
+┃➠ ᴛʜᴇᴍᴇs ᴀʀᴇ ᴘᴇʀᴍᴀɴᴇɴᴛ
+┃➠ ᴏɴᴄᴇ ʙᴏᴜɢʜᴛ, ғᴏʀᴇᴠᴇʀ ᴏᴡɴᴇᴅ
+┃➠ ᴜsᴇ ${prefix}profile ᴛᴏ ᴠɪᴇᴡ
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    // 5. DB KEYS - GROUP ISOLATED
     const invKey = `eco_${groupId}_inv_${sender}_${itemKey}`
     const balanceKey = `eco_${groupId}_balance_${sender}`
     const jailKey = `eco_${groupId}_jail_${sender}`
 
-    // 5. FETCH DATA
+    // 6. FETCH DATA
     const [invCount, balance, jailTime] = await Promise.all([
       db.get(invKey),
       db.get(balanceKey),
@@ -135,7 +180,7 @@ export default {
     const currentBalance = balance || 0
     const currency = await db.getGroupKey(groupId, 'eco_currency') || '$'
 
-    // 6. CHECK JAIL
+    // 7. CHECK JAIL
     if (jailTime && Date.now() < jailTime) {
       const remaining = Math.ceil((jailTime - Date.now()) / 60000)
       return await sock.sendMessage(from, {
@@ -148,7 +193,7 @@ export default {
       }, { quoted: m })
     }
 
-    // 7. CHECK IF HAS ITEM
+    // 8. CHECK IF HAS ITEM
     if (currentInv <= 0) {
       return await sock.sendMessage(from, {
         text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
@@ -160,7 +205,7 @@ export default {
       }, { quoted: m })
     }
 
-    // 8. PARSE AMOUNT
+    // 9. PARSE AMOUNT
     let amount = 1
     if (args[1]) {
       const arg = args[1].toLowerCase()
@@ -181,7 +226,7 @@ export default {
       }
     }
 
-    // 9. CHECK IF ENOUGH ITEMS
+    // 10. CHECK IF ENOUGH ITEMS
     if (amount > currentInv) {
       return await sock.sendMessage(from, {
         text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
@@ -194,19 +239,19 @@ export default {
       }, { quoted: m })
     }
 
-    // 10. CALCULATE SELL PRICE - 60% of original
+    // 11. CALCULATE SELL PRICE - 60% of original
     const sellPrice = Math.floor(itemData.price * 0.6)
     const totalEarned = sellPrice * amount
     const newBalance = currentBalance + totalEarned
     const newInv = currentInv - amount
 
-    // 11. UPDATE DB
+    // 12. UPDATE DB
     await Promise.all([
       db.set(balanceKey, newBalance),
       db.set(invKey, newInv)
     ])
 
-    // 12. GET GROUP NAME
+    // 13. GET GROUP NAME
     let groupName = 'Global'
     if (isGroup) {
       try {
@@ -217,7 +262,7 @@ export default {
       }
     }
 
-    // 13. SEND SUCCESS MESSAGE
+    // 14. SEND SUCCESS MESSAGE
     await sock.sendMessage(from, {
       text: `╔═〘 💰sᴏʟᴅ 〙═╗
 ┃➠ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ sᴜᴄᴄᴇss
