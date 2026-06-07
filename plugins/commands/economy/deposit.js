@@ -28,7 +28,7 @@ export default {
   execute: async (sock, m, args, { db, prefix, isGroup }) => {
     const from = m.key.remoteJid
     const sender = m.key.participant || m.key.remoteJid
-    
+
     // 1. CHECK IF ECONOMY ENABLED FOR THIS GROUP
     if (isGroup) {
       const ecoEnabled = await db.getGroupKey(from, 'eco_enabled')
@@ -145,7 +145,7 @@ export default {
       }
     }
 
-    // 11. SEND DEPOSIT RECEIPT
+    // 11. SEND DEPOSIT RECEIPT - CLEAN
     await sock.sendMessage(from, {
       text: `╔═〘 🏦ᴅᴇᴘᴏsɪᴛ 〙═╗
 ┃➠ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ sᴜᴄᴄᴇss
@@ -163,9 +163,7 @@ export default {
 ┃➠ ʙᴀɴᴋ ɪs sᴀғᴇ ғʀᴏᴍ ʀᴏʙ
 ┃➠ ᴡɪᴛʜᴅʀᴀᴡ ғᴇᴇ: 2%
 ┃➠ ${prefix}bank - Check balance
-╰━━━━━━━━━━━━━━━━━⊷
-
-> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪɴᴄᴇ ᴛᴇᴄʜ*`
+╰━━━━━━━━━━━━━━━━━⊷`
     }, { quoted: m })
   }
 }
