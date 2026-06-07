@@ -26,7 +26,11 @@ export default {
     if (!prompt) {
       const text = nobox
       ? `Usage:\n${prefix}claude What is AI?\n${prefix}claude Write code\nReply text ${prefix}claude`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ Usage:\n║ ${prefix}claude What is AI?\n║ ${prefix}claude Write code\n║ Reply text ${prefix}claude\n╚━━━━━━━━━━━━━━━━━═❒`
+        : `╭━━━━❮ ᴜsᴀɢᴇ ❯━⊷
+┃➠ ${prefix}claude What is AI?
+┃➠ ${prefix}claude Write code
+┃➠ Reply text ${prefix}claude
+╰━━━━━━━━━━━━━━━━━⊷`
       return await sock.sendMessage(from, { text }, { quoted: msg })
     }
 
