@@ -29,7 +29,7 @@ export default {
       bar = '▣▣▣'
     } else if (latency < 200) {
       speed = 'Fast 🚀'
-      bar = '▣▣▣▣□'
+      bar = '▣▣□'
     } else if (latency < 500) {
       speed = 'Good ✨'
       bar = '▣▣▣□□'
@@ -41,7 +41,7 @@ export default {
       bar = '▣□□□□'
     }
 
-    // STEP 3: Tengeneza caption hardcoded - IMPERIAL STYLE
+    // STEP 3: Tengeneza caption hardcoded - SINGLE LINE BOX STYLE
     const [botname, prefix, version] = await Promise.all([
       db.get('botname'),
       db.get('prefix'),
@@ -49,16 +49,14 @@ export default {
     ])
 
     const caption = `
-╔═━━━━━━━━━━━━━━━━═❒
-║    ${botname.toUpperCase()} v${version || '3.2.0'}
-╚━━━━━━━━━━━━━━━━━═❒
-╔═━━━━━━━━━━━━━━━━═❒
-║ ⌬ *PONG* ⌬
-║ 𖠁 *𝖘𝖕𝖊𝖉:* ${latency} Ms
-║ 𖠁 *𝕾𝖙𝖆𝖙𝖚𝖘:* ${speed}
-║ 𖠁 *𝕽𝖆𝖒:* ${bar}
-║ 𖠁 Type ${prefix}menu for commands
-╚━━━━━━━━━━━━━━━━━═❒
+╭━━━━❮ ${botname.toUpperCase()} v${version || '3.2.0'} ❯━⊷
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ᴘᴏɴɢ ❯━⊷
+┃➠ sᴘᴇᴇᴅ: ${latency} Ms
+┃➠ sᴛᴀᴛᴜs: ${speed}
+┃➠ ʀᴀᴍ: ${bar}
+┃➠ Type ${prefix}menu for commands
+╰━━━━━━━━━━━━━━━━━⊷
 `
 
     // STEP 4: Edit message ya kwanza na result - ping halisi
