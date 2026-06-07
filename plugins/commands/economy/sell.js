@@ -1,8 +1,7 @@
 /**
  * SwiftBot - plugins/commands/economy/sell.js
- * Group-Based Item Selling System - 60% Resale Value
- * BLOCKS: Backgrounds are permanent, cannot sell
- * Uses db keys: eco_${groupJid}_inv_${user}_${item}, eco_${groupJid}_balance_${user}
+ * Group-Based Marketplace Listing - Simple Numeric IDs
+ * Uses db keys: eco_${groupJid}_inv_${user}_${item}, eco_${groupJid}_market_list
  */
 
 const formatCash = (num) => {
@@ -59,7 +58,7 @@ const DEFAULT_ITEMS = {
     emoji: '💍',
     category: 'luxury'
   },
-  // BACKGROUNDS - CANNOT SELL
+  // BACKGROUNDS - NOW SELLABLE
   'bg_cyber': { name: 'Cyber Background', price: 5000, emoji: '🎨', category: 'backgrounds', bgKey: 'cyber' },
   'bg_neon': { name: 'Neon Background', price: 5000, emoji: '🎨', category: 'backgrounds', bgKey: 'neon' },
   'bg_sunset': { name: 'Sunset Background', price: 8000, emoji: '🌅', category: 'backgrounds', bgKey: 'sunset' },
@@ -93,9 +92,9 @@ const DEFAULT_ITEMS = {
 
 export default {
   name: 'sell',
-  alias: ['pawn', 'trade'],
-  desc: 'Sell items from inventory - 60% resale value',
-  usage: '<item> [amount | all]',
+  alias: ['list', 'market'],
+  desc: 'List items on marketplace for others to buy - set your own price',
+  usage: '<item> <amount> <price>',
   category: 'Economy',
   permission: 'all',
 
@@ -125,10 +124,10 @@ export default {
         text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
 ┃➠ ᴍɪssɪɴɢ ɪᴛᴇᴍ ɴᴀᴍᴇ
 ┃
-┃➠ ᴜsᴀɢᴇ: ${prefix}sell <item> [amount]
-┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}sell pickaxe
-┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}sell laptop all
-┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}sell phone 2
+┃➠ ᴜsᴀɢᴇ: ${prefix}sell <item> <amount> <price>
+┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}sell laptop 1 10000
+┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}sell bg_gold 1 20000
+┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}sell phone all 8000
 ╚═══════════════════╝`
       }, { quoted: m })
     }
@@ -150,37 +149,21 @@ export default {
       }, { quoted: m })
     }
 
-    // 4. BLOCK BACKGROUND SELLING - FIX
-    if (itemData.bgKey) {
-      return await sock.sendMessage(from, {
-        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ᴄᴀɴ'ᴛ sᴇʟ ʙᴀᴄᴋɢʀᴏᴜɴᴅs
-┃
-┃➠ ɪᴛᴇᴍ: ${itemData.emoji} ${itemData.name}
-┃➠ ᴛʜᴇᴍᴇs ᴀʀᴇ ᴘᴇʀᴍᴀɴᴇɴᴛ
-┃➠ ᴏɴᴄᴇ ʙᴏᴜɢʜᴛ, ғᴏʀᴇᴠᴇʀ ᴏᴡɴᴇᴅ
-┃➠ ᴜsᴇ ${prefix}profile ᴛᴏ ᴠɪᴇᴡ
-╚═══════════════════╝`
-      }, { quoted: m })
-    }
-
-    // 5. DB KEYS - GROUP ISOLATED
+    // 4. DB KEYS - GROUP ISOLATED
     const invKey = `eco_${groupId}_inv_${sender}_${itemKey}`
-    const balanceKey = `eco_${groupId}_balance_${sender}`
     const jailKey = `eco_${groupId}_jail_${sender}`
+    const marketListKey = `eco_${groupId}_market_list`
 
-    // 6. FETCH DATA
-    const [invCount, balance, jailTime] = await Promise.all([
+    // 5. FETCH DATA
+    const [invCount, jailTime] = await Promise.all([
       db.get(invKey),
-      db.get(balanceKey),
       db.get(jailKey)
     ])
 
     const currentInv = invCount || 0
-    const currentBalance = balance || 0
     const currency = await db.getGroupKey(groupId, 'eco_currency') || '$'
 
-    // 7. CHECK JAIL
+    // 6. CHECK JAIL
     if (jailTime && Date.now() < jailTime) {
       const remaining = Math.ceil((jailTime - Date.now()) / 60000)
       return await sock.sendMessage(from, {
@@ -188,12 +171,12 @@ export default {
 ┃➠ ʏᴏᴜ'ʀᴇ ɪɴ ᴊᴀɪʟ
 ┃
 ┃➠ ⏰ ʀᴇʟᴇᴀsᴇ ɪɴ: ${remaining}ᴍ
-┃➠ ɴᴏ sᴇʟʟɪɴɢ ɪɴ ᴊᴀɪʟ
+┃➠ ɴᴏ sᴇʟɪɴɢ ɪɴ ᴊᴀɪʟ
 ╚═══════════════════╝`
       }, { quoted: m })
     }
 
-    // 8. CHECK IF HAS ITEM
+    // 7. CHECK IF HAS ITEM
     if (currentInv <= 0) {
       return await sock.sendMessage(from, {
         text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
@@ -205,8 +188,10 @@ export default {
       }, { quoted: m })
     }
 
-    // 9. PARSE AMOUNT
+    // 8. PARSE AMOUNT & PRICE
     let amount = 1
+    let price = null
+
     if (args[1]) {
       const arg = args[1].toLowerCase()
       if (arg === 'all' || arg === 'max') {
@@ -226,7 +211,29 @@ export default {
       }
     }
 
-    // 10. CHECK IF ENOUGH ITEMS
+    if (!args[2]) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+┃➠ ᴍɪssɪɴɢ ᴘʀɪᴄᴇ
+┃
+┃➠ ᴜsᴀɢᴇ: ${prefix}sell ${itemKey} ${amount} <price>
+┃➠ sᴜɢᴇsᴛᴇᴅ: ${currency}${formatCash(Math.floor(itemData.price * 0.6))}
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    price = parseInt(args[2])
+    if (isNaN(price) || price <= 0) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+┃➠ ɪɴᴠᴀʟɪᴅ ᴘʀɪᴄᴇ
+┃
+┃➠ ᴍᴜsᴛ ʙᴇ ᴘᴏsɪᴛɪᴠᴇ ɴᴜᴍʙᴇʀ
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    // 9. CHECK IF ENOUGH ITEMS
     if (amount > currentInv) {
       return await sock.sendMessage(from, {
         text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
@@ -239,17 +246,40 @@ export default {
       }, { quoted: m })
     }
 
-    // 11. CALCULATE SELL PRICE - 60% of original
-    const sellPrice = Math.floor(itemData.price * 0.6)
-    const totalEarned = sellPrice * amount
-    const newBalance = currentBalance + totalEarned
-    const newInv = currentInv - amount
+    // 10. CREATE MARKETPLACE LISTING - SIMPLE NUMERIC ID
+    const marketList = await db.get(marketListKey) || []
+    const listingId = marketList.length + 1 // 1, 2, 3...
 
-    // 12. UPDATE DB
+    const listing = {
+      id: listingId,
+      seller: sender,
+      itemKey: itemKey,
+      itemName: itemData.name,
+      emoji: itemData.emoji,
+      amount: amount,
+      price: price,
+      pricePerUnit: Math.floor(price / amount),
+      originalPrice: itemData.price,
+      timestamp: Date.now(),
+      bgKey: itemData.bgKey || null
+    }
+
+    // 11. UPDATE DB - REMOVE FROM INV, ADD TO MARKET
+    const newInv = currentInv - amount
+    marketList.push(listing)
+
     await Promise.all([
-      db.set(balanceKey, newBalance),
-      db.set(invKey, newInv)
+      db.set(invKey, newInv),
+      db.set(marketListKey, marketList)
     ])
+
+    // 12. IF BACKGROUND, REMOVE FROM USER'S ACTIVE BG IF USING IT
+    if (itemData.bgKey) {
+      const currentBg = await db.get(`eco_${groupId}_bg_${sender}`)
+      if (currentBg === itemData.bgKey) {
+        await db.set(`eco_${groupId}_bg_${sender}`, 'default')
+      }
+    }
 
     // 13. GET GROUP NAME
     let groupName = 'Global'
@@ -264,23 +294,26 @@ export default {
 
     // 14. SEND SUCCESS MESSAGE
     await sock.sendMessage(from, {
-      text: `╔═〘 💰sᴏʟᴅ 〙═╗
-┃➠ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ sᴜᴄᴄᴇss
+      text: `╔═〘 🏪ʟɪsᴛᴇᴅ 〙═╗
+┃➠ ɪᴛᴇᴍ ʟɪsᴛᴇᴅ ᴏɴ ᴍᴀʀᴋᴇᴛ
 ┃➠ ɢʀᴏᴜᴘ: ${groupName}
 ┃
 ┃➠ ${itemData.emoji} ɪᴛᴇᴍ: ${itemData.name}
 ┃➠ 📦 ǫᴜᴀɴᴛɪᴛʏ: x${amount}
-┃➠ 💵 ᴜɴɪᴛ ᴘʀɪᴄᴇ: ${currency}${formatCash(sellPrice)}
-┃➠ 💰 ᴛᴏᴛᴀʟ ᴇᴀʀɴᴇᴅ: ${currency}${formatCash(totalEarned)}
+┃➠ 💵 ᴘʀɪᴄᴇ ᴘᴇʀ ᴜɴɪᴛ: ${currency}${formatCash(listing.pricePerUnit)}
+┃➠ 💰 ᴛᴏᴛᴀʟ ᴘʀɪᴄᴇ: ${currency}${formatCash(price)}
 ┃
-┃➠ 📦 ʟᴇғᴛ: ${newInv} ${itemData.name}
-┃➠ 💰 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ${currency}${formatCash(newBalance)}
+┃➠ 📦 ʟᴇғᴛ ɪɴ ɪɴᴠ: ${newInv}
+┃➠ 🆔 ʟɪsᴛɪɴɢ ɪᴅ: ${listingId}
+┃
+┃➠ ᴏᴛʜᴇʀs ᴄᴀɴ ɴᴏᴡ ʙᴜʏ ɪᴛ
 ╚═══════════════════╝
 
 ╭━━━━❮ ɪɴғᴏ ❯━⊷
-┃➠ ʀᴇsᴀʟᴇ ᴠᴀʟᴜᴇ: 60%
 ┃➠ ᴏʀɪɢɪɴᴀʟ: ${currency}${formatCash(itemData.price)}
-┃➠ sᴏʟᴅ ғᴏʀ: ${currency}${formatCash(sellPrice)}
+┃➠ ʏᴏᴜʀ ᴘʀɪᴄᴇ: ${currency}${formatCash(listing.pricePerUnit)}
+┃➠ ᴜsᴇ ${prefix}market ᴛᴏ ᴠɪᴇᴡ ᴀʟʟ
+┃➠ ᴜsᴇ ${prefix}pay ${listingId} ᴛᴏ ʙᴜʏ
 ╰━━━━━━━━━━━━━━━━━⊷`
     }, { quoted: m })
   }
