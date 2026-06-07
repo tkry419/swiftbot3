@@ -68,6 +68,10 @@ export const DEFAULTS = {
   // Economy / XP (optional, can be disabled)
   economyEnabled: false,
   xpEnabled: false,
+  eco_currency: '$',
+  eco_startbonus: 500,
+  eco_daily_amount: 1000,
+  eco_rob_cooldown: 3600000,
 
   // ─── AUTO LIKE STATUS ───
   autolikestatus: false,
