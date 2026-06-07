@@ -28,13 +28,17 @@ function getName(msg, jid) {
   return msg.pushName || jid.split('@')[0]
 }
 
-function shuffleArray(arr) {
-  const newArr = [...arr]
-  for (let i = newArr.length - 1; i > 0; i--) {
-    const randIdx = Math.floor(Math.random() * (i + 1))
-    [newArr[i], newArr[randIdx]] = [newArr[randIdx], newArr[i]]
+function shuffleArray(array) {
+  const arr = [...array]
+  let i = arr.length
+  while (i > 0) {
+    const randomIndex = Math.floor(Math.random() * i)
+    i--
+    const temp = arr[i]
+    arr[i] = arr[randomIndex]
+    arr[randomIndex] = temp
   }
-  return newArr
+  return arr
 }
 
 export default {
@@ -45,33 +49,18 @@ export default {
   category: 'games',
   permission: 'all',
 
-  execute: async (sock, m, args, { db }) => {
+  execute: async (sock, m, args, { db, prefix }) => {
     const from = m.key.remoteJid
     const sender = m.key.participant || m.key.remoteJid
     const senderName = getName(m, sender)
     const action = args[0]?.toLowerCase()
-    const prefix = await db.get('prefix')
 
     let game = activeGames.get(from)
 
     // 1. HELP
     if (!action) {
       return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒
-║ *QUIZ TRIVIA*
-╚━━━━━━━━━━━━━━━━━═❒
-╔═━━━━━━━━━━━━━━━━═❒
-║ ${prefix}quiz start - Start quiz
-║ ${prefix}quiz a - Choose A
-║ ${prefix}quiz b - Choose B
-║ ${prefix}quiz c - Choose C
-║ ${prefix}quiz d - Choose D
-║ ${prefix}quiz stop - End game
-╚━━━━━━━━━━━━━━━━━═❒
-╔═━━━━━━━━━━━━━━━━═❒
-║ 5 questions per game
-║ Score points to win
-╚━━━━━━━━━━━━━━━━━═❒`
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *QUIZ TRIVIA*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ ${prefix}quiz start - Start quiz\n║ ${prefix}quiz a - Choose A\n║ ${prefix}quiz b - Choose B\n║ ${prefix}quiz c - Choose C\n║ ${prefix}quiz d - Choose D\n║ ${prefix}quiz stop - End game\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ 5 questions per game\n║ Score points to win\n╚━━━━━━━━━━━━━━━━━═❒`
       }, { quoted: m })
     }
 
@@ -101,7 +90,8 @@ export default {
         currentQ: 0,
         score: 0,
         status: 'playing',
-        msgKey: null
+        msgKey: null,
+        currentChoices: []
       }
 
       activeGames.set(from, gameData)
@@ -143,8 +133,10 @@ export default {
     const playerAnswer = game.currentChoices[choiceIndex]
 
     // CHECK ANSWER
+    let isCorrect = false
     if (playerAnswer === currentQ.a) {
       game.score++
+      isCorrect = true
     }
 
     game.currentQ++
@@ -155,7 +147,7 @@ export default {
       const wins = await db.get(`quiz_wins_${sender}`) || 0
       if (game.score >= 3) await db.set(`quiz_wins_${sender}`, wins + 1)
 
-      const resultText = `╔═━━━━━━━━━━━━━━━━═❒\n║ *QUIZ END*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Player: ${senderName}\n║ Score: ${game.score}/5\n║ ${game.score >= 3? 'You passed!' : 'Try again!'}\n╚━━━━━━━━━━━━━━━━━═❒`
+      const resultText = `╔═━━━━━━━━━━━━━━━━═❒\n║ *QUIZ END*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Player: ${senderName}\n║ Score: ${game.score}/5\n║ Last: ${isCorrect? 'Correct ✅' : 'Wrong ❌'}\n║ ${game.score >= 3? 'You passed!' : 'Try again!'}\n╚━━━━━━━━━━━━━━━━━═❒`
 
       if (game.msgKey) {
         try {
@@ -172,7 +164,7 @@ export default {
     const choices = shuffleArray(q.choices)
     game.currentChoices = choices
 
-    const updateText = `╔═━━━━━━━━━━━━━━━━═❒\n║ *QUIZ Q${game.currentQ + 1}/5*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ ${q.q}\n║\n║ A) ${choices[0]}\n║ B) ${choices[1]}\n║ C) ${choices[2]}\n║ D) ${choices[3]}\n║\n║ Score: ${game.score}\n╚━━━━━━━━━━━━━━━━━═❒`
+    const updateText = `╔═━━━━━━━━━━━━━━━━═❒\n║ *QUIZ Q${game.currentQ + 1}/5*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ ${q.q}\n║\n║ A) ${choices[0]}\n║ B) ${choices[1]}\n║ C) ${choices[2]}\n║ D) ${choices[3]}\n║\n║ Last: ${isCorrect? 'Correct ✅' : 'Wrong ❌'}\n║ Score: ${game.score}\n╚━━━━━━━━━━━━━━━━━═❒`
 
     if (game.msgKey) {
       try {
