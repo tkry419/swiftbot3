@@ -28,7 +28,7 @@ export default {
   execute: async (sock, m, args, { db, prefix, isGroup }) => {
     const from = m.key.remoteJid
     const sender = m.key.participant || m.key.remoteJid
-    
+
     // 1. CHECK IF ECONOMY ENABLED FOR THIS GROUP
     if (isGroup) {
       const ecoEnabled = await db.getGroupKey(from, 'eco_enabled')
@@ -53,7 +53,7 @@ export default {
     }
 
     const targetName = target === sender? 'You' : `@${target.split('@')[0]}`
-    
+
     // 3. DB KEYS - GROUP ISOLATED
     const groupId = isGroup? from : 'global'
     const balanceKey = `eco_${groupId}_balance_${target}`
@@ -88,7 +88,7 @@ export default {
     // 5. INITIALIZE NEW USER WITH START BONUS
     let currentCash = cash
     let currentBank = bank
-    
+
     if (cash === null && bank === null) {
       const bonus = startBonus || 500
       currentCash = bonus
@@ -110,7 +110,7 @@ export default {
     const xpRequired = xpForNext - xpNeeded
     const netWorth = (currentCash || 0) + (currentBank || 0)
     const currencySymbol = currency || '$'
-    
+
     // 7. CHECK JAIL STATUS
     let jailStatus = ''
     if (jailTime && Date.now() < jailTime) {
@@ -129,20 +129,20 @@ export default {
       }
     }
 
-    // 9. SEND BALANCE BOX
+    // 9. SEND BALANCE BOX - CLEAN
     await sock.sendMessage(from, {
       text: `╔═〘 💳ᴇᴄᴏɴᴏᴍʏ 〙═╗
-┃➠ ᴜsᴇʀ       : ${targetName}
-┃➠ ɢʀᴏᴜᴘ      : ${groupName}
+┃➠ ᴜsᴇʀ : ${targetName}
+┃➠ ɢʀᴏᴜᴘ : ${groupName}
 ${jailStatus}┃
-┃➠ 💰 ᴄᴀsʜ     : ${currencySymbol}${formatCash(currentCash)}
-┃➠ 🏦 ʙᴀɴᴋ     : ${currencySymbol}${formatCash(currentBank)}
+┃➠ 💰 ᴄᴀsʜ : ${currencySymbol}${formatCash(currentCash)}
+┃➠ 🏦 ʙᴀɴᴋ : ${currencySymbol}${formatCash(currentBank)}
 ┃➠ 💎 ɴᴇᴛ ᴡᴏʀᴛʜ : ${currencySymbol}${formatCash(netWorth)}
 ┃
-┃➠ 📈 ʟᴇᴠᴇʟ    : ${level}
-┃➠ ⭐ xᴘ       : ${formatCash(xpProgress)}/${formatCash(xpRequired)}
-┃➠ 🔥 sᴛʀᴇᴀᴋ   : ${streak || 0} ᴅᴀʏs
-┃➠ 💼 ᴊᴏʙ      : ${job || 'Unemployed'}
+┃➠ 📈 ʟᴇᴠᴇʟ : ${level}
+┃➠ ⭐ xᴘ : ${formatCash(xpProgress)}/${formatCash(xpRequired)}
+┃➠ 🔥 sᴛʀᴇᴀᴋ : ${streak || 0} ᴅᴀʏs
+┃➠ 💼 ᴊᴏʙ : ${job || 'Unemployed'}
 ╚═══════════════════╝
 
 ╭━━━━❮ ᴄᴏᴍᴍᴀɴᴅs ❯━⊷
@@ -151,9 +151,7 @@ ${jailStatus}┃
 ┃➠ ${prefix}deposit <amount> - Bank cash
 ┃➠ ${prefix}withdraw <amount> - Get cash
 ┃➠ ${prefix}pay @user <amount> - Send money
-╰━━━━━━━━━━━━━━━━━⊷
-
-> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪɴᴄᴇ ᴛᴇᴄʜ*`,
+╰━━━━━━━━━━━━━━━━━⊷`,
       mentions: target!== sender? [target] : []
     }, { quoted: m })
   }
