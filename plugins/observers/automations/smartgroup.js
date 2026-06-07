@@ -96,7 +96,7 @@ async function askGroq(prompt, db, fallback = '', logger) {
     })
     return res.data.choices[0]?.message?.content?.trim() || fallback
   } catch (e) {
-    logger?.error('SG_GROQ', 'API failed, using fallback', e.message)
+    logger?.error('SSG_GROQ', 'API failed, using fallback', e.message)
     return fallback
   }
 }
@@ -282,9 +282,9 @@ function startAutoPosting(sock, db, logger) {
   postInterval = setInterval(async () => {
     try {
       const [enabled, interval, lastPost, botimage] = await Promise.all([
-        db.get('sg_enabled'),
-        db.get('sg_interval'),
-        db.get('sg_last_post'),
+        db.get('ssg_enabled'),
+        db.get('ssg_interval'),
+        db.get('ssg_last_post'),
         db.get('botimage')
       ])
 
@@ -300,11 +300,11 @@ function startAutoPosting(sock, db, logger) {
       const contentType = types[Math.floor(Math.random() * types.length)]
 
       const prompt = contentType === 'poll'
-     ? 'Generate an engaging poll for SwiftBot community group. Ask about features, platforms, or tutorials. Include emoji options. Keep it exciting and community-focused.'
+    ? 'Generate an engaging poll for SwiftBot community group. Ask about features, platforms, or tutorials. Include emoji options. Keep it exciting and community-focused.'
         : contentType === 'promo'
-     ? `Generate a community promotion message encouraging invites. Include group link: ${SMART_GROUP_LINK}, channel: ${CHANNEL_LINK}, pair: ${DEFAULT_PAIR_LINK}. Use hype style.`
+    ? `Generate a community promotion message encouraging invites. Include group link: ${SMART_GROUP_LINK}, channel: ${CHANNEL_LINK}, pair: ${DEFAULT_PAIR_LINK}. Use hype style.`
         : contentType === 'tutorial'
-     ? `Generate a LONG exciting SwiftBot community help message. Use this exact style:
+    ? `Generate a LONG exciting SwiftBot community help message. Use this exact style:
 - Start with emoji title like 🚀💖 SWIFTBOT COMMUNITY HELP ✨
 - Add catchy intro
 - List 8+ features/help topics with ✅
@@ -358,11 +358,11 @@ function startAutoPosting(sock, db, logger) {
         await sock.sendMessage(SMART_GROUP_JID, { text: message })
       }
 
-      await db.set('sg_last_post', now)
+      await db.set('ssg_last_post', now)
 
-      const stats = await db.get('sg_stats') || { posts: 0 }
+      const stats = await db.get('ssg_stats') || { posts: 0 }
       stats.posts = (stats.posts || 0) + 1
-      await db.set('sg_stats', stats)
+      await db.set('ssg_stats', stats)
 
       logger.info('SMARTGROUP', `Posted to group: ${message.substring(0, 50)}...`)
 
@@ -386,9 +386,9 @@ export default {
       // Handle smart group messages
       if (from === SMART_GROUP_JID) {
         const [enabled, autoReply, autoReact, botimage] = await Promise.all([
-          db.get('sg_enabled'),
-          db.get('sg_autoreply'),
-          db.get('sg_autoreact'),
+          db.get('ssg_enabled'),
+          db.get('ssg_autoreply'),
+          db.get('ssg_autoreact'),
           db.get('botimage')
         ])
 
@@ -405,9 +405,9 @@ export default {
           const reaction = reactions[Math.floor(Math.random() * reactions.length)]
           try {
             await sock.sendMessage(from, { react: { text: reaction, key: m.key } })
-            const stats = await db.get('sg_stats') || { reactions: 0 }
+            const stats = await db.get('ssg_stats') || { reactions: 0 }
             stats.reactions = (stats.reactions || 0) + 1
-            await db.set('sg_stats', stats)
+            await db.set('ssg_stats', stats)
           } catch {}
         }
 
@@ -438,9 +438,9 @@ export default {
             } else {
               await sock.sendMessage(from, { text: reply }, { quoted: m })
             }
-            const stats = await db.get('sg_stats') || { replies: 0 }
+            const stats = await db.get('ssg_stats') || { replies: 0 }
             stats.replies = (stats.replies || 0) + 1
-            await db.set('sg_stats', stats)
+            await db.set('ssg_stats', stats)
           }, 2000 + Math.random() * 3000)
         }
       }
