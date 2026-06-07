@@ -315,7 +315,7 @@ export async function routeMessage(sock, m) {
     // ─── CHECK IF DISABLED ───────────────────
     if (await isCommandDisabled(cmd.name, isGroup? from : null)) {
       const msg = nobox
-   ? `Command *${cmd.name}* is disabled.`
+  ? `Command *${cmd.name}* is disabled.`
         : await box.error(`Command *${cmd.name}* is disabled.`)
       await sock.sendMessage(from, { text: msg }, { quoted: m })
       return
@@ -378,7 +378,8 @@ export async function routeMessage(sock, m) {
         cmdName,
         args,
         body,
-        nobox
+        nobox,
+        command: cmdName
       })
 
       logger.executed(cmd.name, sender.split('@')[0], true)
@@ -388,7 +389,7 @@ export async function routeMessage(sock, m) {
       logger.error('CMD', `${cmd.name} crashed`, e.message)
 
       const errorBox = nobox
-   ? `Command failed: ${e.message}`
+  ? `Command failed: ${e.message}`
         : await box.error(`Command failed: ${e.message}`)
       const contextInfo = await getChannelContext()
 
