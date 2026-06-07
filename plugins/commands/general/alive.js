@@ -17,10 +17,10 @@ export default {
 
     const [botname, prefix, owner, ownerName, mode, botimage, version, platform, credit] = await Promise.all([
       db.get('botname'),
-      db.get('prefix'),
       db.get('owner'),
       db.get('ownerName'),
       db.get('mode'),
+      db.get('prefix'),
       db.get('botimage'),
       db.get('version'),
       db.get('platform'),
@@ -40,26 +40,24 @@ export default {
     const speed = (Math.random() * 150 + 50).toFixed(4)
 
     const caption = `
-╔═━━━━━━━━━━━━━━━━═❒
-║    ${botname.toUpperCase()} v${version || '3.2.0'}
-╚━━━━━━━━━━━━━━━━━═❒
-╔═━━━━━━━━━━━━━━━━═❒
-║ 𖠁 *𝕻𝖗𝖊𝖋𝖎𝖝:* [ ${prefix} ]
-║ 𖠁 *𝕺𝖜𝖓𝖊𝖗:* ${ownerName || owner || 'Not Set'}
-║ 𖠁 *𝕮𝖗𝖊𝖉𝖎𝖙:* ${credit || 'SwiftBot Tech'}
-║ 𖠁 *𝕸𝖔𝖉𝖊:* ${mode?.toUpperCase() || 'PUBLIC'}
-║ 𖠁 *𝕻𝖑𝖆𝖙𝖋𝖔𝖗𝖒:* ${platform || 'whatsapp'}
-║ 𖠁 *𝖘𝖕𝖊𝖉:* ${speed} Ms
-║ 𖠁 *𝖚𝖕𝖙𝖎𝖒𝖊:* ${days}d ${hours}h ${minutes}m ${seconds}s
-║ 𖠁 *𝖁𝖊𝖗𝖘𝖎𝖔𝖒:* ${version || '3.2.0'}
-║ 𖠁 *𝕽𝖆𝖒:* ${ramBars} ${ramPercent}%
-║ 𖠁 *𝖀𝖘𝖆𝖌𝖊:* ${used}MB of ${total}MB
-╚━━━━━━━━━━━━━━━━━═❒
-╔═━━━━━━━━━━━━━━━━═❒
-║ ⌬ *STATUS* ⌬
-║ 𖠁 Bot is Alive
-║ 𖠁 Type ${prefix}menu for commands
-╚━━━━━━━━━━━━━━━━━═❒
+╭━━━━❮ ${botname.toUpperCase()} v${version || '3.2.0'} ❯━⊷
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ᴅᴇᴛᴀɪʟs ❯━⊷
+┃➠ ᴘʀᴇғɪx: [ ${prefix} ]
+┃➠ ᴏᴡɴᴇʀ: ${ownerName || owner || 'Not Set'}
+┃➠ ᴄʀᴇᴅɪᴛ: ${credit || 'SwiftBot Tech'}
+┃➠ ᴍᴏᴅᴇ: ${mode?.toUpperCase() || 'PUBLIC'}
+┃➠ ᴘʟᴀᴛғᴏʀᴍ: ${platform || 'whatsapp'}
+┃➠ sᴘᴇᴇᴅ: ${speed} Ms
+┃➠ ᴜᴘᴛɪᴍᴇ: ${days}d ${hours}h ${minutes}m ${seconds}s
+┃➠ ᴠᴇʀsɪᴏɴ: ${version || '3.2.0'}
+┃➠ ʀᴀᴍ: ${ramBars} ${ramPercent}%
+┃➠ ᴜsᴀɢᴇ: ${used}MB of ${total}MB
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ sᴛᴀᴛᴜs ❯━⊷
+┃➠ Bot is Alive
+┃➠ Type ${prefix}menu for commands
+╰━━━━━━━━━━━━━━━━━⊷
 `
 
     try {
