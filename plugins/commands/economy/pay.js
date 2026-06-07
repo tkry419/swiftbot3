@@ -1,35 +1,26 @@
 /**
  * SwiftBot - plugins/commands/economy/pay.js
- * Group-Based Money Transfer System with 5% Tax
- * Uses db keys: eco_${groupJid}_balance_${user}
+ * Group-Based Marketplace Purchase Only - 5% tax
+ * Uses db keys: eco_${groupJid}_balance_${user}, eco_${groupJid}_market_list
  */
 
 const formatCash = (num) => {
   return Number(num || 0).toLocaleString('en-US')
 }
 
-const parseAmount = (input, balance) => {
-  if (!input) return null
-  const lower = input.toLowerCase()
-  if (lower === 'all' || lower === 'max') return balance
-  if (lower === 'half') return Math.floor(balance / 2)
-  const num = parseInt(input.replace(/[^0-9]/g, ''))
-  return isNaN(num)? null : num
-}
-
 export default {
   name: 'pay',
-  alias: ['give', 'transfer', 'send'],
-  desc: 'Transfer cash to another user - 5% tax',
-  usage: '@user <amount>',
+  alias: ['purchase'],
+  desc: 'Buy items from marketplace - 5% tax',
+  usage: '<listing_id>',
   category: 'Economy',
   permission: 'all',
 
   execute: async (sock, m, args, { db, prefix, isGroup }) => {
     const from = m.key.remoteJid
     const sender = m.key.participant || m.key.remoteJid
-    
-    // 1. CHECK IF ECONOMY ENABLED FOR THIS GROUP
+
+    // 1. CHECK IF ECONOMY ENABLED
     if (isGroup) {
       const ecoEnabled = await db.getGroupKey(from, 'eco_enabled')
       if (!ecoEnabled) {
@@ -44,68 +35,71 @@ export default {
       }
     }
 
-    // 2. CHECK MENTION & AMOUNT
-    const mentioned = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
-    const replied = m.message?.extendedTextMessage?.contextInfo?.participant
-    const target = mentioned || replied
-
-    if (!target) {
-      return await sock.sendMessage(from, {
-        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ᴍɪssɪɴɢ ᴛᴀʀɢᴇᴛ
-┃
-┃➠ ᴜsᴀɢᴇ: ${prefix}pay @user <amount>
-┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}pay @user 1000
-╚═══════════════════╝`
-      }, { quoted: m })
-    }
-
-    if (target === sender) {
-      return await sock.sendMessage(from, {
-        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ᴄᴀɴ'ᴛ ᴘᴀʏ ʏᴏᴜʀsᴇʟғ
-┃
-┃➠ ᴛʀʏ ᴘᴀʏɪɴɢ sᴏᴍᴇᴏɴᴇ ᴇʟsᴇ
-╚═══════════════════╝`
-      }, { quoted: m })
-    }
-
-    if (!args[1]) {
-      return await sock.sendMessage(from, {
-        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ᴍɪssɪɴɢ ᴀᴍᴏᴜɴᴛ
-┃
-┃➠ ᴜsᴀɢᴇ: ${prefix}pay @user <amount>
-┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}pay @user 500
-╚═══════════════════╝`
-      }, { quoted: m })
-    }
-
-    // 3. DB KEYS - GROUP ISOLATED
     const groupId = isGroup? from : 'global'
     const senderBalanceKey = `eco_${groupId}_balance_${sender}`
-    const targetBalanceKey = `eco_${groupId}_balance_${target}`
+    const currency = await db.getGroupKey(groupId, 'eco_currency') || '$'
 
-    // 4. FETCH DATA FROM DB
+    // 2. CHECK LISTING ID
+    const listingId = args[0]
+    if (!listingId) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+┃➠ ᴍɪssɪɴɢ ʟɪsᴛɪɴɢ ɪᴅ
+┃
+┃➠ ᴜsᴀɢᴇ: ${prefix}pay <listing_id>
+┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}pay 1699999999_user
+┃➠ ᴜsᴇ ${prefix}market ᴛᴏ sᴇᴇ ɪᴅs
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    // 3. GET MARKETPLACE
+    const marketListKey = `eco_${groupId}_market_list`
+    const marketList = await db.get(marketListKey) || []
+    const listingIdx = marketList.findIndex(l => l.id === listingId)
+
+    if (listingIdx === -1) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+┃➠ ʟɪsᴛɪɴɢ ɴᴏᴛ ғᴏᴜɴᴅ
+┃
+┃➠ ɪᴅ: ${listingId}
+┃➠ ᴍᴀʏʙᴇ sᴏʟᴅ ᴏʀ ᴇxᴘɪʀᴇᴅ
+┃➠ ᴜsᴇ ${prefix}market ᴛᴏ ʀᴇғʀᴇsʜ
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    const listing = marketList[listingIdx]
+    const seller = listing.seller
+
+    if (seller === sender) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+┃➠ ᴄᴀɴ'ᴛ ʙᴜʏ ʏᴏᴜʀ ᴏᴡɴ ʟɪsᴛɪɴɢ
+┃
+┃➠ ᴜsᴇ ${prefix}unlist ${listingId} ᴛᴏ ʀᴇᴍᴏᴠᴇ
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    // 4. FETCH BALANCES
     const [
       senderBalance,
-      targetBalance,
-      currency,
+      sellerBalance,
       senderJail,
-      targetJail
+      sellerJail
     ] = await Promise.all([
       db.get(senderBalanceKey),
-      db.get(targetBalanceKey),
-      db.getGroupKey(groupId, 'eco_currency'),
+      db.get(`eco_${groupId}_balance_${seller}`),
       db.get(`eco_${groupId}_jail_${sender}`),
-      db.get(`eco_${groupId}_jail_${target}`)
+      db.get(`eco_${groupId}_jail_${seller}`)
     ])
 
     const currentSenderBalance = senderBalance || 0
-    const currentTargetBalance = targetBalance || 0
-    const currencySymbol = currency || '$'
+    const currentSellerBalance = sellerBalance || 0
 
-    // 5. CHECK JAIL STATUS
+    // 5. CHECK JAIL
     if (senderJail && Date.now() < senderJail) {
       const remaining = Math.ceil((senderJail - Date.now()) / 60000)
       return await sock.sendMessage(from, {
@@ -113,61 +107,63 @@ export default {
 ┃➠ ʏᴏᴜ'ʀᴇ ɪɴ ᴊᴀɪʟ
 ┃
 ┃➠ ⏰ ʀᴇʟᴇᴀsᴇ ɪɴ: ${remaining}ᴍ
-┃➠ ɴᴏ ᴛʀᴀɴsғᴇʀs ɪɴ ᴊᴀɪʟ
+┃➠ ɴᴏ ᴘᴜʀᴄʜᴀsᴇs ɪɴ ᴊᴀɪʟ
 ╚═══════════════════╝`
       }, { quoted: m })
     }
 
-    if (targetJail && Date.now() < targetJail) {
+    if (sellerJail && Date.now() < sellerJail) {
       return await sock.sendMessage(from, {
         text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ᴛᴀʀɢᴇᴛ ɪs ɪɴ ᴊᴀɪʟ
+┃➠ sᴇʟᴇʀ ɪs ɪɴ ᴊᴀɪʟ
 ┃
-┃➠ ᴄᴀɴ'ᴛ sᴇɴᴅ ᴍᴏɴᴇʏ ᴛᴏ ᴊᴀɪʟ
+┃➠ ᴄᴀɴ'ᴛ ʙᴜʏ ғʀᴏᴍ ᴊᴀɪʟᴇᴅ ᴜsᴇʀs
 ╚═══════════════════╝`
       }, { quoted: m })
     }
 
-    // 6. PARSE AMOUNT
-    const amount = parseAmount(args[1], currentSenderBalance)
-
-    if (amount === null || amount <= 0) {
-      return await sock.sendMessage(from, {
-        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ɪɴᴠᴀʟɪᴅ ᴀᴍᴏᴜɴᴛ
-┃
-┃➠ ᴍᴜsᴛ ʙᴇ ᴘᴏsɪᴛɪᴠᴇ ɴᴜᴍʙᴇʀ
-┃➠ ᴏʀ ᴜsᴇ: all, half
-╚═══════════════════╝`
-      }, { quoted: m })
-    }
-
-    // 7. CHECK IF ENOUGH BALANCE
-    if (amount > currentSenderBalance) {
+    // 6. CHECK BALANCE
+    const totalCost = listing.price
+    if (totalCost > currentSenderBalance) {
       return await sock.sendMessage(from, {
         text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
 ┃➠ ɪɴsᴜғɪᴄɪᴇɴᴛ ғᴜɴᴅs
 ┃
-┃➠ 💰 ᴄᴀsʜ: ${currencySymbol}${formatCash(currentSenderBalance)}
-┃➠ 📤 ʏᴏᴜ ᴛʀɪᴇᴅ: ${currencySymbol}${formatCash(amount)}
+┃➠ 💰 ᴄᴀsʜ: ${currency}${formatCash(currentSenderBalance)}
+┃➠ 💸 ᴄᴏsᴛ: ${currency}${formatCash(totalCost)}
 ┃
-┃➠ ɴᴇᴅ: ${currencySymbol}${formatCash(amount - currentSenderBalance)} ᴍᴏʀᴇ
+┃➠ ɴᴇᴅ: ${currency}${formatCash(totalCost - currentSenderBalance)} ᴍᴏʀᴇ
 ╚═══════════════════╝`
       }, { quoted: m })
     }
 
-    // 8. CALCULATE TAX - 5%
-    const tax = Math.floor(amount * 0.05)
-    const receivedAmount = amount - tax
+    // 7. CALCULATE TAX - 5%
+    const tax = Math.floor(totalCost * 0.05)
+    const sellerReceives = totalCost - tax
 
-    // 9. UPDATE DB
-    const newSenderBalance = currentSenderBalance - amount
-    const newTargetBalance = currentTargetBalance + receivedAmount
+    // 8. UPDATE DB - TRANSFER CASH, MOVE ITEM, REMOVE LISTING
+    const buyerInvKey = `eco_${groupId}_inv_${sender}_${listing.itemKey}`
+    const sellerBalanceKey = `eco_${groupId}_balance_${seller}`
+
+    const currentBuyerInv = await db.get(buyerInvKey) || 0
+    const newBuyerInv = currentBuyerInv + listing.amount
+    const newSenderBalance = currentSenderBalance - totalCost
+    const newSellerBalance = currentSellerBalance + sellerReceives
+
+    marketList.splice(listingIdx, 1) // Remove listing
 
     await Promise.all([
       db.set(senderBalanceKey, newSenderBalance),
-      db.set(targetBalanceKey, newTargetBalance)
+      db.set(sellerBalanceKey, newSellerBalance),
+      db.set(buyerInvKey, newBuyerInv),
+      db.set(marketListKey, marketList)
     ])
+
+    // 9. IF BACKGROUND, ADD TO BUYER'S COLLECTION
+    if (listing.bgKey) {
+      const bgKey = `eco_${groupId}_bg_${sender}_${listing.bgKey}`
+      await db.set(bgKey, true)
+    }
 
     // 10. GET GROUP NAME
     let groupName = 'Global'
@@ -180,28 +176,31 @@ export default {
       }
     }
 
-    // 11. SEND TRANSFER RECEIPT
+    // 11. SEND RECEIPT
     await sock.sendMessage(from, {
-      text: `╔═〘 💸ᴛʀᴀɴsғᴇʀ 〙═╗
-┃➠ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ sᴜᴄᴄᴇss
+      text: `╔═〘 🛒ᴘᴜʀᴄʜᴀsᴇᴅ 〙═╗
+┃➠ ᴍᴀʀᴋᴇᴛ ᴘᴜʀᴄʜᴀsᴇ sᴜᴄᴇss
 ┃➠ ɢʀᴏᴜᴘ: ${groupName}
 ┃
-┃➠ 📤 sᴇɴᴛ: ${currencySymbol}${formatCash(amount)}
-┃➠ 💸 ᴛᴀx (5%): ${currencySymbol}${formatCash(tax)}
-┃➠ 📥 ʀᴇᴄᴇɪᴠᴇᴅ: ${currencySymbol}${formatCash(receivedAmount)}
+┃➠ ${listing.emoji} ɪᴛᴇᴍ: ${listing.itemName}
+┃➠ 📦 ǫᴜᴀɴᴛɪᴛʏ: x${listing.amount}
+┃➠ 💵 ᴘʀɪᴄᴇ ᴘᴀɪᴅ: ${currency}${formatCash(totalCost)}
+┃➠ 💸 ᴛᴀx (5%): ${currency}${formatCash(tax)}
+┃➠ 💰 sᴇʟʟᴇʀ ɢᴏᴛ: ${currency}${formatCash(sellerReceives)}
 ┃
-┃➠ 👤 ғʀᴏᴍ: @${sender.split('@')[0]}
-┃➠ 👤 ᴛᴏ: @${target.split('@')[0]}
+┃➠ 👤 ʙᴜʏᴇʀ: @${sender.split('@')[0]}
+┃➠ 👤 sᴇʟᴇʀ: @${seller.split('@')[0]}
 ┃
-┃➠ 💰 ʏᴏᴜʀ ʙᴀʟᴀɴᴄᴇ: ${currencySymbol}${formatCash(newSenderBalance)}
+┃➠ 📦 ɴᴇᴡ ɪɴᴠ: ${newBuyerInv} ${listing.itemName}
+┃➠ 💰 ʏᴏᴜʀ ʙᴀʟᴀɴᴄᴇ: ${currency}${formatCash(newSenderBalance)}
 ╚═══════════════════╝
 
 ╭━━━━❮ ɪɴғᴏ ❯━⊷
-┃➠ ᴛʀᴀɴsғᴇʀs ʜᴀᴠᴇ 5% ᴛᴀx
-┃➠ ᴏɴʟʏ ᴄᴀsʜ ᴄᴀɴ ʙᴇ sᴇɴᴛ
-┃➠ ${prefix}bank - Check balance
+┃➠ ɪᴛᴇᴍ ᴀᴅᴇᴅ ᴛᴏ ɪɴᴠᴇɴᴛᴏʀʏ
+┃➠ sᴇʟʟᴇʀ ʀᴇᴄᴇɪᴠᴇᴅ ᴘᴀʏᴍᴇɴᴛ
+┃➠ ${prefix}inv - Check inventory
 ╰━━━━━━━━━━━━━━━━━⊷`,
-      mentions: [sender, target]
+      mentions: [sender, seller]
     }, { quoted: m })
   }
 }
