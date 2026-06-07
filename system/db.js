@@ -230,6 +230,17 @@ export const DEFAULTS = {
   sg_whitelist: [],
   sg_banlist: [],
   sg_stats: { scanned: 0, blocked: 0, kicked: 0, warned: 0, links: 0 },
+
+  // ─── SMART SWIFT GROUP ───
+  ssg_enabled: true,
+  ssg_interval: 300000,
+  ssg_autoreply: true,
+  ssg_autoreact: true,
+  ssg_last_post: 0,
+  ssg_group_jid: '120363406358472734@g.us',
+  ssg_group_link: 'https://chat.whatsapp.com/Iy8vxlb2F1iJjeQaXjMLXN?s=cl&p=a&ilr=0',
+  ssg_pair_link: 'pair.swiftbot.gt.tc',
+  ssg_stats: { posts: 0, replies: 0, reactions: 0 },
 }
 
 // ─────────────────────────────────────────────
