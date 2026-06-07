@@ -24,16 +24,16 @@ const TRACE_STEPS = [
   { msg: 'VPN bypassed. Real IP exposed...', percent: 24 },
   { msg: 'Geolocating target device...', percent: 28 },
   { msg: 'Satellite triangulation active...', percent: 32 },
-  { msg: 'Location ping: Dar es Salaam, TZ', percent: 36 },
-  { msg: 'ISP identified: Vodacom Tanzania', percent: 40 },
+  { msg: 'Location ping: Los Angeles, CA', percent: 36 },
+  { msg: 'ISP identified: AT&T Fiber', percent: 40 },
   { msg: 'Accessing phone tower data...', percent: 44 },
-  { msg: 'Cell tower ID: VTZ-${Math.floor(Math.random() * 9999)}', percent: 48 },
+  { msg: 'Cell tower ID: ATT-5234', percent: 48 },
   { msg: 'Extracting device fingerprint...', percent: 52 },
-  { msg: 'Device: Samsung Galaxy S24 Ultra', percent: 56 },
-  { msg: 'IMEI captured: 35${Math.floor(Math.random() * 999999999999)}', percent: 60 },
+  { msg: 'Device: iPhone 15 Pro Max', percent: 56 },
+  { msg: 'IMEI captured: 35***********', percent: 60 },
   { msg: 'Scanning active WiFi networks...', percent: 64 },
-  { msg: 'WiFi SSID: "Home_WiFi_5G" detected', percent: 68 },
-  { msg: 'MAC Address: ${Math.random().toString(16).slice(2,14).toUpperCase()}', percent: 72 },
+  { msg: 'WiFi SSID: "Home_Network_5G" detected', percent: 68 },
+  { msg: 'MAC Address: **:**:**:**:**:**', percent: 72 },
   { msg: 'Accessing front camera...', percent: 76 },
   { msg: 'Camera feed: ACTIVE - Face detected', percent: 80 },
   { msg: 'Recording microphone audio...', percent: 84 },
@@ -84,7 +84,7 @@ export default {
       targetName = 'this group'
     } else {
       return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *IP TRACE* 🌐\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Usage: ${prefix}trace @user\n║ ${prefix}trace 255xxx\n║ ${prefix}trace - trace group\n╚━━━━━━━━━━━━━━━━━═❒`
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *IP TRACE* 🌐\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Usage: ${prefix}trace @user\n║ ${prefix}trace 1555xxx\n║ ${prefix}trace - trace group\n╚━━━━━━━━━━━━━━━━━═❒`
       }, { quoted: m })
     }
 
@@ -97,17 +97,17 @@ export default {
 
     // 3. SEND TARGET PIC FIRST
     const fakeIP = `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`
-    const fakeISP = ['Vodacom', 'Airtel', 'Tigo', 'Halotel'][Math.floor(Math.random() * 4)]
+    const fakeISP = ['AT&T', 'Verizon', 'T-Mobile', 'Comcast'][Math.floor(Math.random() * 4)]
 
     if (targetPic) {
       await sock.sendMessage(from, {
         image: { url: targetPic },
-        caption: `╔═━━━━━━━━━━━━━━━━═❒\n║ *TARGET IDENTIFIED* 🎯\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Name: ${targetName}\n║ Status: ONLINE\n║ IP: ${fakeIP}\n║ ISP: ${fakeISP} Tanzania\n║ Protocol: TCP/IP\n║\n║ Initiating deep trace...\n╚━━━━━━━━━━━━━━━━━═❒`
+        caption: `╔═━━━━━━━━━━━━━━━━═❒\n║ *TARGET IDENTIFIED* 🎯\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Name: ${targetName}\n║ Status: ONLINE\n║ IP: ${fakeIP}\n║ ISP: ${fakeISP} USA\n║ Protocol: TCP/IP\n║\n║ Initiating deep trace...\n╚━━━━━━━━━━━━━━━━━═❒`
       }, { quoted: m })
       await sleep(2500)
     } else {
       await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *TARGET IDENTIFIED* 🎯\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Name: ${targetName}\n║ Status: ONLINE\n║ IP: ${fakeIP}\n║ ISP: ${fakeISP} Tanzania\n║\n║ Initiating deep trace...\n╚━━━━━━━━━━━━━━━━━═❒`
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *TARGET IDENTIFIED* 🎯\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Name: ${targetName}\n║ Status: ONLINE\n║ IP: ${fakeIP}\n║ ISP: ${fakeISP} USA\n║\n║ Initiating deep trace...\n╚━━━━━━━━━━━━━━━━━═❒`
       }, { quoted: m })
       await sleep(2000)
     }
@@ -132,13 +132,13 @@ export default {
 
     // 5. FINAL INTEL REPORT
     const intel = [
-      `📍 Location: Dar es Salaam, Kariakoo`,
-      `📱 Device: Samsung Galaxy S24 Ultra`,
+      `📍 Location: Los Angeles, Hollywood`,
+      `📱 Device: iPhone 15 Pro Max`,
       `🔋 Battery: ${Math.floor(Math.random() * 100)}%`,
       `📶 Network: 5G - ${fakeISP}`,
       `🌐 IP: ${fakeIP}`,
-      `🏠 Address: Street ${Math.floor(Math.random() * 50)}, House ${Math.floor(Math.random() * 200)}`,
-      `💻 OS: Android 14`,
+      `🏠 Address: ${Math.floor(Math.random() * 9999)} Sunset Blvd`,
+      `💻 OS: iOS 17.5`,
       `🔐 Encryption: Bypassed`,
       `📷 Camera: Accessed`,
       `🎤 Microphone: Active`,
@@ -152,7 +152,7 @@ export default {
     await sleep(1500)
 
     await sock.sendMessage(from, {
-      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *OPERATION COMPLETE* 🕵️\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Agent: ${senderName}\n║ Target: ${targetName}\n║ Duration: ${TRACE_STEPS.length} scans\n║\n║ All data sent to headquarters\n║ FBI has been notified\n║\n║ Just kidding! Prank tu 😂\n║ Hakuna mtu anaku-trace\n╚━━━━━━━━━━━━━━━━━═❒`
+      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *OPERATION COMPLETE* 🕵️\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Agent: ${senderName}\n║ Target: ${targetName}\n║ Duration: ${TRACE_STEPS.length} scans\n║\n║ All data sent to headquarters\n║ FBI has been notified\n║\n║ Just kidding! It's a prank 😂\n║ Nobody is actually tracing you\n║ You're completely safe\n╚━━━━━━━━━━━━━━━━━═❒`
     })
   }
 }
