@@ -82,7 +82,7 @@ export default {
       targetName = 'this group chat'
     } else {
       return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *TIME BOMB* 💣\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Usage: ${prefix}bomb @user\n║ ${prefix}bomb 255xxx\n║ ${prefix}bomb - bomb group\n╚━━━━━━━━━━━━━━━━━═❒`
+        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *TIME BOMB* 💣\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Usage: ${prefix}bomb @user\n║ ${prefix}bomb 1555xxx\n║ ${prefix}bomb - bomb group\n╚━━━━━━━━━━━━━━━━━═❒`
       }, { quoted: m })
     }
 
@@ -127,7 +127,7 @@ export default {
 
     // 5. EXPLOSION
     await sock.sendMessage(from, {
-      text: `💥💥💥💥💥💥💥💥💥💥💥\n💥💥💥 BOOOOOOOM!!! 💥💥💥\n💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥`
+      text: `💥💥💥💥💥💥💥💥💥\n💥💥💥 BOOOOOOOM!!! 💥💥💥\n💥💥💥`
     })
 
     await sleep(1000)
@@ -153,7 +153,7 @@ export default {
     await sleep(1500)
 
     await sock.sendMessage(from, {
-      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *MISSION REPORT* 💣\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Bomber: ${senderName}\n║ Victim: ${targetName}\n║ Weapon: C4 Time Bomb\n║ Result: TOTAL ANNIHILATION\n║\n║ CNN Breaking News: Live\n║ Police: On the way\n║\n║ SI MCHEZO HUU! 😂\n║ Ni prank tu mkuu\n║ Hakuna aliyelipuka\n╚━━━━━━━━━━━━━━━━━═❒`
+      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ *MISSION REPORT* 💣\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Bomber: ${senderName}\n║ Victim: ${targetName}\n║ Weapon: C4 Time Bomb\n║ Result: TOTAL ANNIHILATION\n║\n║ CNN Breaking News: Live\n║ Police: On the way\n║\n║ THIS IS NOT A JOKE! 😂\n║ It's just a prank bro\n║ Nobody actually exploded\n╚━━━━━━━━━━━━━━━━━═❒`
     })
   }
 }
