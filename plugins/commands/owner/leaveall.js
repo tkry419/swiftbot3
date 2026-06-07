@@ -1,6 +1,6 @@
 /**
- * SwiftBot - plugins/commands/owner/broadcast.js
- * Broadcast Message to All Users/Groups
+ * SwiftBot - plugins/commands/owner/leaveall.js
+ * Leave All Groups - DANGEROUS
  */
 
 function getName(msg, jid) {
@@ -8,59 +8,52 @@ function getName(msg, jid) {
 }
 
 export default {
-  name: 'broadcast',
-  alias: ['bc', 'announce'],
-  desc: 'Broadcast to all users/groups',
-  usage: '<users/groups/all> <message>',
+  name: 'leaveall',
+  alias: ['leaveallgroups'],
+  desc: 'Leave all groups',
+  usage: '<confirm>',
   category: 'owner',
   permission: 'owner',
 
-  execute: async (sock, m, args, { db, box, nobox, body, prefix, cmdName }) => {
+  execute: async (sock, m, args, { db, box, nobox, prefix }) => {
     const from = m.key.remoteJid
     const sender = m.key.participant || m.key.remoteJid
     const senderName = getName(m, sender)
 
-    const target = args[0]?.toLowerCase()
-    const message = body.slice(prefix.length + cmdName.length + target.length).trim()
+    const confirm = args[0]?.toLowerCase()
 
-    if (!target ||!['users', 'groups', 'all'].includes(target) ||!message) {
+    if (confirm!== 'confirm') {
       const msg = nobox
-  ? `Broadcast: Invalid usage\n\nUsage: ${prefix}broadcast users/groups/all <message>`
-        : await box.error(`Invalid usage\n\nUsage: ${prefix}broadcast users/groups/all <message>`)
+  ? `⚠️ LEAVE ALL GROUPS\n\nThis will make bot leave ALL groups.\nCannot be undone.\n\nTo proceed: ${prefix}leaveall confirm`
+        : `╔═━━━━━━━━━━━━━━━━═❒\n║ *⚠️ LEAVE ALL GROUPS*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Bot will leave ALL groups\n║ Cannot be undone!\n║\n║ To proceed:\n║ ${prefix}leaveall confirm\n╚━━━━━━━━━━━━━━━━━═❒`
       return await sock.sendMessage(from, { text: msg }, { quoted: m })
     }
 
+    const groups = await sock.groupFetchAllParticipating()
+    const groupIds = Object.keys(groups)
+
     const sent = await sock.sendMessage(from, {
       text: nobox
-  ? `Broadcasting to ${target}...\n\nBy: ${senderName}`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ *BROADCAST*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Target: ${target}\n║ By: ${senderName}\n║\n║ Sending...\n╚━━━━━━━━━━━━━━━━━═❒`
+  ? `Leaving ${groupIds.length} groups...\n\nBy: ${senderName}`
+        : `╔═━━━━━━━━━━━━━━━━═❒\n║ *LEAVE ALL*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Groups: ${groupIds.length}\n║ By: ${senderName}\n║\n║ Leaving...\n╚━━━━━━━━━━━━━━━━━═❒`
     }, { quoted: m })
 
-    let sentCount = 0, failCount = 0
-    const allUsers = await db.getAllUsers()
-    const allGroups = await db.getAllGroups()
-
-    const targets = []
-    if (target === 'users' || target === 'all') targets.push(...Object.keys(allUsers).filter(j => j.endsWith('@s.whatsapp.net')))
-    if (target === 'groups' || target === 'all') targets.push(...Object.keys(allGroups).filter(j => j.endsWith('@g.us')))
-
-    for (const jid of targets) {
+    let left = 0, failed = 0
+    for (const jid of groupIds) {
       try {
-        await sock.sendMessage(jid, {
-          text: `📢 *BROADCAST*\n\n${message}\n\n~ ${senderName}`
-        })
-        sentCount++
-        await new Promise(r => setTimeout(r, 1000)) // 1s delay
+        await sock.groupLeave(jid)
+        left++
+        await new Promise(r => setTimeout(r, 2000))
       } catch {
-        failCount++
+        failed++
       }
     }
 
     await sock.sendMessage(from, {
       edit: sent.key,
       text: nobox
-  ? `Broadcast complete ✅\n\nSent: ${sentCount}\nFailed: ${failCount}\nTotal: ${targets.length}`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ *BROADCAST DONE*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Sent: ${sentCount} ✅\n║ Failed: ${failCount} ❌\n║ Total: ${targets.length}\n╚━━━━━━━━━━━━━━━━━═❒`
+  ? `Left all groups ✅\n\nSuccess: ${left}\nFailed: ${failed}\nTotal: ${groupIds.length}`
+        : `╔═━━━━━━━━━━━━━━━━═❒\n║ *LEAVE ALL DONE*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Left: ${left} ✅\n║ Failed: ${failed} ❌\n║ Total: ${groupIds.length}\n╚━━━━━━━━━━━━━━━━━═❒`
     })
   }
 }
