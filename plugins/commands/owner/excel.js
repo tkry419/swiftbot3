@@ -27,14 +27,14 @@ export default {
     let cmd = body.slice(prefix.length + cmdName.length).trim()
     if (!cmd) {
       const msg = nobox
-   ? 'Exec: Provide shell command\n\nUsage: #exec ls -la'
-        : await box.error('Provide shell command\n\nUsage: #exec ls -la')
+  ? `Exec: Provide shell command\n\nUsage: ${prefix}exec ls -la`
+        : await box.error(`Provide shell command\n\nUsage: ${prefix}exec ls -la`)
       return await sock.sendMessage(from, { text: msg }, { quoted: m })
     }
 
     const sent = await sock.sendMessage(from, {
       text: nobox
-   ? `Executing: ${cmd}\n\nBy: ${senderName}`
+  ? `Executing: ${cmd}\n\nBy: ${senderName}`
         : `╔═━━━━━━━━━━━━━━━━═❒\n║ *EXEC*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Owner: ${senderName}\n║ Cmd: ${cmd}\n║\n║ Running...\n╚━━━━━━━━━━━━━━━━━═❒`
     }, { quoted: m })
 
@@ -46,7 +46,7 @@ export default {
       await sock.sendMessage(from, {
         edit: sent.key,
         text: nobox
-     ? `$ ${cmd}\n\n${output}`
+    ? `$ ${cmd}\n\n${output}`
           : `╔═━━━━━━━━━━━━━━━━═❒\n║ *EXEC RESULT*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ $ ${cmd}\n║\n║ ${output}\n╚━━━━━━━━━━━━━━━━━═❒`
       })
 
@@ -54,7 +54,7 @@ export default {
       await sock.sendMessage(from, {
         edit: sent.key,
         text: nobox
-     ? `$ ${cmd}\n\nError:\n${error.message}`
+    ? `$ ${cmd}\n\nError:\n${error.message}`
           : `╔═━━━━━━━━━━━━━━━━═❒\n║ *EXEC ERROR*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ $ ${cmd}\n║\n║ Error:\n║ ${error.message}\n╚━━━━━━━━━━━━━━━━━═❒`
       })
     }
