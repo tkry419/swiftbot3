@@ -1,6 +1,6 @@
 /**
  * SwiftBot - plugins/commands/economy/profile.js
- * Dynamic Profile Card - Backgrounds Sold in Shop
+ * Dynamic Profile Card - so Backgrounds Sold in Shop
  * Uses Sharp + Jimp - Shows PFP, Name, Balance, Level, Stats
  */
 
@@ -22,38 +22,38 @@ const calculateXpToNext = (xp) => {
   return nextLevelXp - xp
 }
 
-// 30 BACKGROUNDS - ALL SOLD IN SHOP
+// 30 BACKGROUNDS - ALL SOLD IN SHOP - BRIGHTER COLORS
 const BACKGROUNDS = {
-  'default': { name: 'Hacker', color: '#0a0a0a', pattern: 'matrix', price: 0 },
-  'cyber': { name: 'Cyber', color: '#1a0033', pattern: 'grid', price: 5000 },
-  'neon': { name: 'Neon', color: '#001a1a', pattern: 'lines', price: 5000 },
-  'sunset': { name: 'Sunset', color: '#330011', pattern: 'gradient', price: 8000 },
-  'ocean': { name: 'Ocean', color: '#001a33', pattern: 'waves', price: 8000 },
-  'forest': { name: 'Forest', color: '#0d1a0d', pattern: 'dots', price: 8000 },
-  'galaxy': { name: 'Galaxy', color: '#0a001a', pattern: 'stars', price: 15000 },
-  'fire': { name: 'Fire', color: '#330a00', pattern: 'flame', price: 10000 },
-  'ice': { name: 'Ice', color: '#001a33', pattern: 'crystal', price: 10000 },
-  'gold': { name: 'Gold', color: '#1a1500', pattern: 'luxury', price: 25000 },
-  'silver': { name: 'Silver', color: '#1a1a1a', pattern: 'metal', price: 20000 },
-  'purple': { name: 'Purple', color: '#1a0033', pattern: 'royal', price: 12000 },
-  'red': { name: 'Red', color: '#330000', pattern: 'blood', price: 10000 },
-  'blue': { name: 'Blue', color: '#000033', pattern: 'deep', price: 10000 },
-  'green': { name: 'Green', color: '#003300', pattern: 'nature', price: 10000 },
-  'pink': { name: 'Pink', color: '#330033', pattern: 'cute', price: 12000 },
-  'orange': { name: 'Orange', color: '#331a00', pattern: 'warm', price: 10000 },
-  'teal': { name: 'Teal', color: '#003333', pattern: 'calm', price: 10000 },
-  'void': { name: 'Void', color: '#000000', pattern: 'black', price: 30000 },
-  'light': { name: 'Light', color: '#1a1a1a', pattern: 'minimal', price: 15000 },
-  'rainbow': { name: 'Rainbow', color: '#1a1a1a', pattern: 'colorful', price: 20000 },
-  'carbon': { name: 'Carbon', color: '#0d0d0d', pattern: 'fiber', price: 18000 },
-  'diamond': { name: 'Diamond', color: '#1a1a33', pattern: 'gems', price: 50000 },
-  'emerald': { name: 'Emerald', color: '#001a0d', pattern: 'jewel', price: 40000 },
-  'ruby': { name: 'Ruby', color: '#1a0000', pattern: 'stone', price: 40000 },
-  'sapphire': { name: 'Sapphire', color: '#00001a', pattern: 'crystal', price: 40000 },
-  'cosmic': { name: 'Cosmic', color: '#0a001a', pattern: 'space', price: 35000 },
-  'toxic': { name: 'Toxic', color: '#1a3300', pattern: 'poison', price: 15000 },
-  'vintage': { name: 'Vintage', color: '#1a1200', pattern: 'retro', price: 12000 },
-  'future': { name: 'Future', color: '#001a33', pattern: 'tech', price: 30000 }
+  'default': { name: 'Hacker', color: '#0d2818', pattern: 'matrix', price: 0 },
+  'cyber': { name: 'Cyber', color: '#2d0a4d', pattern: 'grid', price: 5000 },
+  'neon': { name: 'Neon', color: '#003333', pattern: 'lines', price: 5000 },
+  'sunset': { name: 'Sunset', color: '#4d1a1a', pattern: 'gradient', price: 8000 },
+  'ocean': { name: 'Ocean', color: '#0d2d4d', pattern: 'waves', price: 8000 },
+  'forest': { name: 'Forest', color: '#1a330d', pattern: 'dots', price: 8000 },
+  'galaxy': { name: 'Galaxy', color: '#1a0d33', pattern: 'stars', price: 15000 },
+  'fire': { name: 'Fire', color: '#4d1500', pattern: 'flame', price: 10000 },
+  'ice': { name: 'Ice', color: '#0d334d', pattern: 'crystal', price: 10000 },
+  'gold': { name: 'Gold', color: '#332600', pattern: 'luxury', price: 25000 },
+  'silver': { name: 'Silver', color: '#333333', pattern: 'metal', price: 20000 },
+  'purple': { name: 'Purple', color: '#33004d', pattern: 'royal', price: 12000 },
+  'red': { name: 'Red', color: '#4d0000', pattern: 'blood', price: 10000 },
+  'blue': { name: 'Blue', color: '#00004d', pattern: 'deep', price: 10000 },
+  'green': { name: 'Green', color: '#004d00', pattern: 'nature', price: 10000 },
+  'pink': { name: 'Pink', color: '#4d004d', pattern: 'cute', price: 12000 },
+  'orange': { name: 'Orange', color: '#4d2600', pattern: 'warm', price: 10000 },
+  'teal': { name: 'Teal', color: '#004d4d', pattern: 'calm', price: 10000 },
+  'void': { name: 'Void', color: '#1a1a1a', pattern: 'black', price: 30000 },
+  'light': { name: 'Light', color: '#333333', pattern: 'minimal', price: 15000 },
+  'rainbow': { name: 'Rainbow', color: '#2d2d2d', pattern: 'colorful', price: 20000 },
+  'carbon': { name: 'Carbon', color: '#1a1a1a', pattern: 'fiber', price: 18000 },
+  'diamond': { name: 'Diamond', color: '#2d2d4d', pattern: 'gems', price: 50000 },
+  'emerald': { name: 'Emerald', color: '#0d3320', pattern: 'jewel', price: 40000 },
+  'ruby': { name: 'Ruby', color: '#330d0d', pattern: 'stone', price: 40000 },
+  'sapphire': { name: 'Sapphire', color: '#0d0d33', pattern: 'crystal', price: 40000 },
+  'cosmic': { name: 'Cosmic', color: '#1a0d4d', pattern: 'space', price: 35000 },
+  'toxic': { name: 'Toxic', color: '#2d4d00', pattern: 'poison', price: 15000 },
+  'vintage': { name: 'Vintage', color: '#332200', pattern: 'retro', price: 12000 },
+  'future': { name: 'Future', color: '#0d2d4d', pattern: 'tech', price: 30000 }
 }
 
 async function generateBackground(theme) {
@@ -61,36 +61,50 @@ async function generateBackground(theme) {
   const width = 1200, height = 630
   const image = await Jimp.create(width, height, bg.color)
 
-  // Dynamic patterns
+  // Dynamic patterns - MORE VISIBLE
   if (bg.pattern === 'matrix') {
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 200; i++) {
       const x = Math.random() * width
       const y = Math.random() * height
-      image.setPixelColor(Jimp.rgbaToInt(0, 255, 0, Math.random() * 100), x, y)
+      image.setPixelColor(Jimp.rgbaToInt(0, 255, 0, Math.random() * 180 + 75), x, y)
     }
   } else if (bg.pattern === 'grid') {
-    for (let x = 0; x < width; x += 50) {
+    for (let x = 0; x < width; x += 40) {
       for (let y = 0; y < height; y++) {
-        image.setPixelColor(Jimp.rgbaToInt(100, 0, 255, 40), x, y)
+        image.setPixelColor(Jimp.rgbaToInt(150, 50, 255, 120), x, y)
       }
     }
-    for (let y = 0; y < height; y += 50) {
+    for (let y = 0; y < height; y += 40) {
       for (let x = 0; x < width; x++) {
-        image.setPixelColor(Jimp.rgbaToInt(100, 0, 255, 40), x, y)
+        image.setPixelColor(Jimp.rgbaToInt(150, 50, 255, 120), x, y)
       }
     }
   } else if (bg.pattern === 'stars') {
-    for (let i = 0; i < 300; i++) {
+    for (let i = 0; i < 400; i++) {
       const x = Math.random() * width
       const y = Math.random() * height
-      image.setPixelColor(Jimp.rgbaToInt(255, 255, 255, Math.random() * 255), x, y)
+      const size = Math.random() * 2
+      image.setPixelColor(Jimp.rgbaToInt(255, 255, 255, Math.random() * 200 + 55), x, y)
     }
   } else if (bg.pattern === 'waves') {
     for (let x = 0; x < width; x++) {
-      const y = height / 2 + Math.sin(x / 30) * 50
-      for (let dy = 0; dy < 3; dy++) {
-        image.setPixelColor(Jimp.rgbaToInt(0, 150, 255, 100), x, y + dy)
+      const y = height / 2 + Math.sin(x / 30) * 60
+      for (let dy = 0; dy < 5; dy++) {
+        image.setPixelColor(Jimp.rgbaToInt(0, 180, 255, 150), x, y + dy)
       }
+    }
+  } else if (bg.pattern === 'gradient') {
+    image.scan(0, 0, width, height, function (x, y, idx) {
+      const ratio = y / height
+      this.bitmap.data[idx + 0] = Math.floor(255 * ratio) // R
+      this.bitmap.data[idx + 1] = Math.floor(100 * (1 - ratio)) // G
+      this.bitmap.data[idx + 2] = Math.floor(150 * ratio) // B
+    })
+  } else if (bg.pattern === 'dots') {
+    for (let i = 0; i < 150; i++) {
+      const x = Math.random() * width
+      const y = Math.random() * height
+      image.setPixelColor(Jimp.rgbaToInt(0, 255, 100, 100), x, y)
     }
   }
 
@@ -102,13 +116,13 @@ async function createRoundPfp(imageUrl) {
     const response = await fetch(imageUrl)
     const buffer = await response.buffer()
     return await sharp(buffer)
-    .resize(280, 280)
-    .composite([{
+   .resize(280, 280)
+   .composite([{
         input: Buffer.from(`<svg><circle cx="140" cy="140" r="140"/></svg>`),
         blend: 'dest-in'
       }])
-    .png()
-    .toBuffer()
+   .png()
+   .toBuffer()
   } catch {
     return await sharp({
       create: { width: 280, height: 280, channels: 4, background: { r: 50, g: 50, b: 50, alpha: 1 } }
@@ -191,44 +205,47 @@ export default {
     <svg width="1200" height="630">
       <defs>
         <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#000;stop-opacity:0.8" />
-          <stop offset="100%" style="stop-color:#000;stop-opacity:0.4" />
+          <stop offset="0%" style="stop-color:#000;stop-opacity:0.4" />
+          <stop offset="100%" style="stop-color:#000;stop-opacity:0.2" />
         </linearGradient>
         <filter id="glow">
           <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
           <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
+        <filter id="shadow">
+          <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#000" flood-opacity="0.9"/>
+        </filter>
       </defs>
       <rect width="1200" height="630" fill="url(#grad)"/>
 
-      <text x="380" y="70" font-family="Arial Black" font-size="52" fill="#fff" filter="url(#glow)">${userName.toUpperCase()}</text>
-      <text x="380" y="115" font-family="Arial" font-size="28" fill="#00ff88">Level ${level} | ${formatCash(currentXp)} XP</text>
-      <text x="380" y="145" font-family="Arial" font-size="22" fill="#888">Next: ${formatCash(xpToNext)} XP</text>
+      <text x="380" y="70" font-family="Arial Black" font-size="52" fill="#fff" filter="url(#shadow)">${userName.toUpperCase()}</text>
+      <text x="380" y="115" font-family="Arial" font-size="28" fill="#00ff88" filter="url(#shadow)">Level ${level} | ${formatCash(currentXp)} XP</text>
+      <text x="380" y="145" font-family="Arial" font-size="22" fill="#ccc" filter="url(#shadow)">Next: ${formatCash(xpToNext)} XP</text>
 
-      <rect x="380" y="170" width="700" height="2" fill="#fff" opacity="0.3"/>
+      <rect x="380" y="170" width="700" height="2" fill="#fff" opacity="0.5"/>
 
-      <text x="380" y="220" font-family="Arial Black" font-size="38" fill="#00ff00">💰 ${currencySymbol}${formatCash(currentBalance)}</text>
-      <text x="380" y="270" font-family="Arial" font-size="32" fill="#0099ff">🏦 ${currencySymbol}${formatCash(currentBank)}</text>
-      <text x="380" y="320" font-family="Arial Black" font-size="36" fill="#ffaa00">💎 ${currencySymbol}${formatCash(totalWealth)}</text>
+      <text x="380" y="220" font-family="Arial Black" font-size="38" fill="#00ff00" filter="url(#shadow)">💰 ${currencySymbol}${formatCash(currentBalance)}</text>
+      <text x="380" y="270" font-family="Arial" font-size="32" fill="#0099ff" filter="url(#shadow)">🏦 ${currencySymbol}${formatCash(currentBank)}</text>
+      <text x="380" y="320" font-family="Arial Black" font-size="36" fill="#ffaa00" filter="url(#shadow)">💎 ${currencySymbol}${formatCash(totalWealth)}</text>
 
-      <rect x="380" y="350" width="700" height="2" fill="#fff" opacity="0.3"/>
+      <rect x="380" y="350" width="700" height="2" fill="#fff" opacity="0.5"/>
 
-      <text x="380" y="400" font-family="Arial" font-size="26" fill="#ff6600">🔥 Streak: ${streak || 0} days</text>
-      <text x="680" y="400" font-family="Arial" font-size="26" fill="#ff0000">🦹 Crimes: ${crimeCount || 0}</text>
-      <text x="380" y="440" font-family="Arial" font-size="26" fill="#aa00ff">🎨 Theme: ${BACKGROUNDS[bgTheme]?.name || 'Hacker'}</text>
-      <text x="680" y="440" font-family="Arial" font-size="26" fill="${isJailed? '#ff0000' : '#00ff00'}">${isJailed? '🚨 IN JAIL' : '✅ ACTIVE'}</text>
+      <text x="380" y="400" font-family="Arial" font-size="26" fill="#ff6600" filter="url(#shadow)">🔥 Streak: ${streak || 0} days</text>
+      <text x="680" y="400" font-family="Arial" font-size="26" fill="#ff0000" filter="url(#shadow)">🦹 Crimes: ${crimeCount || 0}</text>
+      <text x="380" y="440" font-family="Arial" font-size="26" fill="#aa00ff" filter="url(#shadow)">🎨 Theme: ${BACKGROUNDS[bgTheme]?.name || 'Hacker'}</text>
+      <text x="680" y="440" font-family="Arial" font-size="26" fill="${isJailed? '#ff0000' : '#00ff00'}" filter="url(#shadow)">${isJailed? '🚨 IN JAIL' : '✅ ACTIVE'}</text>
 
-      <text x="380" y="550" font-family="Arial" font-size="20" fill="#666">SwiftBot Economy | ${groupId === 'global'? 'Global' : 'Group'} Profile</text>
+      <text x="380" y="550" font-family="Arial" font-size="20" fill="#aaa" filter="url(#shadow)">SwiftBot Economy | ${groupId === 'global'? 'Global' : 'Group'} Profile</text>
     </svg>
     `
 
     const finalImage = await sharp(bgBuffer)
-    .composite([
+   .composite([
         { input: pfpBuffer, top: 175, left: 60 },
         { input: Buffer.from(svgText), top: 0, left: 0 }
       ])
-    .jpeg({ quality: 95 })
-    .toBuffer()
+   .jpeg({ quality: 95 })
+   .toBuffer()
 
     await sock.sendMessage(from, {
       image: finalImage,
