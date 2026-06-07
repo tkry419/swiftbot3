@@ -19,15 +19,13 @@ export default {
   permission: 'owner',
 
   execute: async (sock, m, args, { db, box, nobox, prefix, sender, from, isGroup, isOwner, cmdName, body }) => {
-    const from = m.key.remoteJid
-    const sender = m.key.participant || m.key.remoteJid
     const senderName = getName(m, sender)
 
     let code = body.slice(prefix.length + cmdName.length).trim()
     if (!code) {
       const msg = nobox
-    ? 'Eval: Provide JavaScript code\n\nUsage: #eval 2+2'
-        : await box.error('Provide JavaScript code\n\nUsage: #eval 2+2')
+   ? `Eval: Provide JavaScript code\n\nUsage: ${prefix}eval 2+2`
+        : await box.error(`Provide JavaScript code\n\nUsage: ${prefix}eval 2+2`)
       return await sock.sendMessage(from, { text: msg }, { quoted: m })
     }
 
@@ -39,7 +37,7 @@ export default {
 
     const sent = await sock.sendMessage(from, {
       text: nobox
-    ? `Evaluating...\n\nBy: ${senderName}`
+   ? `Evaluating...\n\nBy: ${senderName}`
         : `╔═━━━━━━━━━━━━━━━━═❒\n║ *EVAL*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Owner: ${senderName}\n║\n║ Executing...\n╚━━━━━━━━━━━━━━━━━═❒`
     }, { quoted: m })
 
@@ -47,7 +45,7 @@ export default {
       let result = await eval(`(async () => { ${code} })()`)
 
       if (typeof result!== 'string') {
-        result = util.inspect(result, { depth: 1, maxArrayLength: 100 })
+        result = util.inspect(result, { depth: 2, maxArrayLength: 100 })
       }
 
       const output = result.length > 4000? result.slice(0, 4000) + '\n\n...truncated' : result
@@ -55,7 +53,7 @@ export default {
       await sock.sendMessage(from, {
         edit: sent.key,
         text: nobox
-      ? `Input:\n${code}\n\nOutput:\n${output}`
+     ? `Input:\n${code}\n\nOutput:\n${output}`
           : `╔═━━━━━━━━━━━━━━━━═❒\n║ *EVAL RESULT*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Input:\n║ ${code}\n║\n║ Output:\n║ ${output}\n╚━━━━━━━━━━━━━━━━━═❒`
       })
 
@@ -66,7 +64,7 @@ export default {
         await sock.sendMessage(from, {
           edit: sent.key,
           text: nobox
-        ? `Input:\n${code}\n\nError:\n${errMsg}`
+       ? `Input:\n${code}\n\nError:\n${errMsg}`
             : `╔═━━━━━━━━━━━━━━━━═❒\n║ *EVAL ERROR*\n╚━━━━━━━━━━━━━━━━━═❒\n╔═━━━━━━━━━━━━━━━━═❒\n║ Input:\n║ ${code}\n║\n║ Error:\n║ ${errMsg}\n╚━━━━━━━━━━━━━━━━━═❒`
         })
       } catch {}
