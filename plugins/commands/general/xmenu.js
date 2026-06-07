@@ -44,13 +44,20 @@ export default {
     // If user types xmenu or menu - show all available category menus
     if (usedCommand === 'xmenu' || usedCommand === 'menu' || usedCommand === 'help') {
       const catList = Array.from(categories.entries())
-   .filter(([name]) => name.toLowerCase()!== 'misc' && name.toLowerCase()!== 'general')
-   .map(([name, data]) => `║ ❒ ${prefix}${name.toLowerCase()}menu\n║ ${data.commands.length} commands`)
-   .join('\n║\n')
+  .filter(([name]) => name.toLowerCase()!== 'misc' && name.toLowerCase()!== 'general')
+  .map(([name, data]) => `┃➠ ${prefix}${name.toLowerCase()}menu\n┃ ${data.commands.length} commands`)
+  .join('\n┃\n')
 
       const text = nobox
-   ? `CATEGORY MENUS\n\n${Array.from(categories.keys()).filter(c => c.toLowerCase()!== 'misc' && c.toLowerCase()!== 'general').map((c) => `• ${prefix}${c.toLowerCase()}menu`).join('\n')}\n\nUse any menu to see commands`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ ${botname.toUpperCase()}\n╠═══════════════════\n║ CATEGORY MENUS\n╠═══════════════════\n${catList}\n╠═══════════════════\n║ Use any menu above\n╚━━━━━━━━━━━━━━━━━═❒`
+  ? `CATEGORY MENUS\n\n${Array.from(categories.keys()).filter(c => c.toLowerCase()!== 'misc' && c.toLowerCase()!== 'general').map((c) => `• ${prefix}${c.toLowerCase()}menu`).join('\n')}\n\nUse any menu to see commands`
+        : `╭━━━━❮ ${botname.toUpperCase()} ❯━⊷
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ᴄᴀᴛᴇɢᴏʀʏ ᴍᴇɴᴜs ❯━⊷
+${catList}
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ɪɴғᴏ ❯━⊷
+┃➠ Use any menu above
+╰━━━━━━━━━━━━━━━━━⊷`
 
       return await sock.sendMessage(from, {
         image: { url: botimage },
@@ -78,13 +85,13 @@ export default {
 
     if (!finalCategory) {
       const availableCats = Array.from(categories.keys())
-     .filter(c => c.toLowerCase()!== 'misc' && c.toLowerCase()!== 'general')
-     .map(c => `${prefix}${c.toLowerCase()}menu`)
-     .join(', ')
+    .filter(c => c.toLowerCase()!== 'misc' && c.toLowerCase()!== 'general')
+    .map(c => `${prefix}${c.toLowerCase()}menu`)
+    .join(', ')
 
       return await sock.sendMessage(from, {
         text: nobox
-     ? `Category not found\nAvailable: ${availableCats}`
+    ? `Category not found\nAvailable: ${availableCats}`
           : await box.error(`Category not found\nAvailable: ${availableCats}`)
       }, { quoted: msg })
     }
@@ -94,19 +101,26 @@ export default {
     if (!categoryData || categoryData.commands.length === 0) {
       return await sock.sendMessage(from, {
         text: nobox
-     ? `Category "${finalCategory}" is empty`
+    ? `Category "${finalCategory}" is empty`
           : await box.error(`Category "${finalCategory}" is empty`)
       }, { quoted: msg })
     }
 
     // BULLET DESIGN - HAKUNA NAMBA
     const cmdList = categoryData.commands
- .map((c) => `║ • ${prefix}${c.name}`)
- .join('\n')
+.map((c) => `┃➠ ${prefix}${c.name}`)
+.join('\n')
 
     const text = nobox
- ? `${categoryData.name.toUpperCase()} MENU\n\n${categoryData.commands.map((c) => `• ${prefix}${c.name}`).join('\n')}\n\nTotal: ${categoryData.commands.length} commands`
-      : `╔═━━━━━━━━━━━━━━━━═❒\n║ ${botname.toUpperCase()}\n╠═══════════════════\n║ ${categoryData.name.toUpperCase()}\n╠═══════════════════\n${cmdList}\n╠═══════════════════\n║ Total: ${categoryData.commands.length} commands\n╚━━━━━━━━━━━━━━━━━═❒`
+? `${categoryData.name.toUpperCase()} MENU\n\n${categoryData.commands.map((c) => `• ${prefix}${c.name}`).join('\n')}\n\nTotal: ${categoryData.commands.length} commands`
+      : `╭━━━━❮ ${botname.toUpperCase()} ❯━⊷
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ${categoryData.name.toUpperCase()} ❯━⊷
+${cmdList}
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ɪɴғᴏ ❯━⊷
+┃➠ Total: ${categoryData.commands.length} commands
+╰━━━━━━━━━━━━━━━━━⊷`
 
     await sock.sendMessage(from, {
       image: { url: botimage },
