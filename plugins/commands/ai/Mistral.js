@@ -26,7 +26,11 @@ export default {
     if (!prompt) {
       const text = nobox
       ? `Usage:\n${prefix}mistral What is AI?\n${prefix}mistral Write code\nReply text ${prefix}mistral`
-        : `╔═━━━━━━━━━━━━━━━━═❒\n║ Usage:\n║ ${prefix}mistral What is AI?\n║ ${prefix}mistral Write code\n║ Reply text ${prefix}mistral\n╚━━━━━━━━━━━━━━━━━═❒`
+        : `╭━━━━❮ ᴜsᴀɢᴇ ❯━⊷
+┃➠ ${prefix}mistral What is AI?
+┃➠ ${prefix}mistral Write code
+┃➠ Reply text ${prefix}mistral
+╰━━━━━━━━━━━━━━━━━⊷`
       return await sock.sendMessage(from, { text }, { quoted: msg })
     }
 
@@ -56,7 +60,7 @@ Rules:
       const res = await axios.post(
         'https://api.groq.com/openai/v1/chat/completions',
         {
-          model: 'mixtral-8x7b-32768',
+          model: 'llama-3.3-70b-versatile',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: prompt }
