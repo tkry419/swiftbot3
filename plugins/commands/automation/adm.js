@@ -21,7 +21,7 @@ export default {
 
     if (!isOwner) {
       return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Owner only command\n╚━━━━━━━━━━━━━━━━━═❒`
+        text: `╭━━━━❮ ᴇʀʀᴏʀ ❯━⊷\n┃➠ Owner only command\n╰━━━━━━━━━━━━━━━━━⊷`
       }, { quoted: m })
     }
 
@@ -55,43 +55,43 @@ export default {
       const hasGroq = groqKey || process.env.GROQ_API_KEY
 
       return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒
-║ 🤖 AUTO SUPER GROUP MANAGER
-╠═══════════════════
-║ Status: ${enabled? '🟢 ON' : '🔴 OFF'}
-║ AI Mode: ${mode || 'smart'}
-║ Groq API: ${hasGroq? '✅ Connected' : '❌ Using Defaults'}
-║
-║ 📍 TARGETS:
-║ All Groups: ${groupsEnabled!== false? '✅ ON' : '❌ OFF'}
-║ Specific Groups: ${groups?.length || 0}
-║ ${groups?.length? '𖠁 ' + groupList : ''}
-║
-║ ⚙️ FEATURES:
-║ Night Mode: ${nightMode? `✅ ${nightTime || '22:00'}-${morningTime || '06:00'}` : '❌ OFF'}
-║ Auto Approve: ${autoApprove? '✅ ON' : '❌ OFF'}
-║ Auto Greet: ${autoGreet? '✅ ON' : '❌ OFF'}
-║ Link Filter: ${linkFilter? '✅ AI Scan' : '❌ OFF'}
-║ Spam Detect: ${spamDetect? '✅ ON' : '❌ OFF'}
-║ Bot Detect: ${botDetect? '✅ ON' : '❌ OFF'}
-║
-║ 🧠 AI ACTIONS:
-║ • Auto kick/warn/delete
-║ • Link safety check
-║ • Spam/bot detection
-║ • Group description updates
-║ • Smart greetings
-╠═══════════════════
-║ 📝 USAGE:
-║ ${prefix}asgm on global
-║ ${prefix}asgm on group
-║ ${prefix}asgm off global
-║ ${prefix}asgm mode smart
-║ ${prefix}asgm mode strict
-║ ${prefix}asgm nightmode 22:00 06:00
-║ ${prefix}asgm toggle approve
-║ ${prefix}asgm toggle greet
-╚━━━━━━━━━━━━━━━━━═❒`
+        text: `╭━━━━❮ ᴀᴜᴛᴏ sᴜᴘᴇʀ ɢʀᴏᴜᴘ ᴍᴀɴᴀɢᴇʀ ❯━⊷
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ sᴛᴀᴛᴜs ❯━⊷
+┃➠ Status: ${enabled? '🟢 ON' : '🔴 OFF'}
+┃➠ AI Mode: ${mode || 'smart'}
+┃➠ Groq API: ${hasGroq? '✅ Connected' : '❌ Using Defaults'}
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ᴛᴀʀɢᴇᴛs ❯━⊷
+┃➠ All Groups: ${groupsEnabled!== false? '✅ ON' : '❌ OFF'}
+┃➠ Specific Groups: ${groups?.length || 0}
+┃ ${groups?.length? '➠ ' + groupList : ''}
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ғᴇᴀᴛᴜʀᴇs ❯━⊷
+┃➠ Night Mode: ${nightMode? `✅ ${nightTime || '22:00'}-${morningTime || '06:00'}` : '❌ OFF'}
+┃➠ Auto Approve: ${autoApprove? '✅ ON' : '❌ OFF'}
+┃➠ Auto Greet: ${autoGreet? '✅ ON' : '❌ OFF'}
+┃➠ Link Filter: ${linkFilter? '✅ AI Scan' : '❌ OFF'}
+┃➠ Spam Detect: ${spamDetect? '✅ ON' : '❌ OFF'}
+┃➠ Bot Detect: ${botDetect? '✅ ON' : '❌ OFF'}
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ᴀɪ ᴀᴄᴛɪᴏɴs ❯━⊷
+┃➠ Auto kick/warn/delete
+┃➠ Link safety check
+┃➠ Spam/bot detection
+┃➠ Group description updates
+┃➠ Smart greetings
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ᴜsᴀɢᴇ ❯━⊷
+┃➠ ${prefix}asgm on global
+┃➠ ${prefix}asgm on group
+┃➠ ${prefix}asgm off global
+┃➠ ${prefix}asgm mode smart
+┃➠ ${prefix}asgm mode strict
+┃➠ ${prefix}asgm nightmode 22:00 06:00
+┃➠ ${prefix}asgm toggle approve
+┃➠ ${prefix}asgm toggle greet
+╰━━━━━━━━━━━━━━━━━⊷`
       }, { quoted: m })
     }
 
@@ -110,7 +110,7 @@ export default {
           db.set('asgm_botdetect', true)
         ])
         return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ Auto Super Group Manager ON\n║ Mode: SMART AI\n║ All features enabled\n╚━━━━━━━━━━━━━━━━━═❒`
+          text: `╭━━━━❮ sᴜᴄᴄᴇss ❯━⊷\n┃➠ Auto Super Group Manager ON\n┃➠ Mode: SMART AI\n┃➠ All features enabled\n╰━━━━━━━━━━━━━━━━━⊷`
         }, { quoted: m })
       }
 
@@ -122,7 +122,7 @@ export default {
         }
         await db.set('asgm_enabled', true)
         return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ✅ ASGM Enabled\n║ Target: THIS GROUP\n╚━━━━━━━━━━━━━━━━━═❒`
+          text: `╭━━━━❮ sᴜᴄᴄᴇss ❯━⊷\n┃➠ ASGM Enabled\n┃➠ Target: THIS GROUP\n╰━━━━━━━━━━━━━━━━━⊷`
         }, { quoted: m })
       }
     }
@@ -132,7 +132,7 @@ export default {
       if (!target || target === 'global') {
         await db.set('asgm_enabled', false)
         return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Auto Super Group Manager OFF\n╚━━━━━━━━━━━━━━━━━═❒`
+          text: `╭━━━━❮ sᴜᴄᴄᴇss ❯━⊷\n┃➠ Auto Super Group Manager OFF\n╰━━━━━━━━━━━━━━━━━⊷`
         }, { quoted: m })
       }
 
@@ -141,7 +141,7 @@ export default {
         groups = groups.filter(g => g!== from)
         await db.set('asgm_groups', groups)
         return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ ASGM Disabled\n║ Target: THIS GROUP\n╚━━━━━━━━━━━━━━━━━═❒`
+          text: `╭━━━━❮ sᴜᴄᴄᴇss ❯━⊷\n┃➠ ASGM Disabled\n┃➠ Target: THIS GROUP\n╰━━━━━━━━━━━━━━━━━⊷`
         }, { quoted: m })
       }
     }
@@ -151,7 +151,7 @@ export default {
       if (['smart', 'strict', 'lenient'].includes(target)) {
         await db.set('asgm_mode', target)
         return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ⚙️ AI Mode Set\n║ Mode: ${target.toUpperCase()}\n╚━━━━━━━━━━━━━━━━━═❒`
+          text: `╭━━━━❮ sᴜᴄᴄᴇss ❯━⊷\n┃➠ AI Mode Set\n┃➠ Mode: ${target.toUpperCase()}\n╰━━━━━━━━━━━━━━━━━⊷`
         }, { quoted: m })
       }
     }
@@ -161,7 +161,7 @@ export default {
       if (target === 'off') {
         await db.set('asgm_nightmode', false)
         return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🌙 Night Mode OFF\n╚━━━━━━━━━━━━━━━━━═❒`
+          text: `╭━━━━❮ sᴜᴄᴄᴇss ❯━⊷\n┃➠ Night Mode OFF\n╰━━━━━━━━━━━━━━━━━⊷`
         }, { quoted: m })
       }
 
@@ -171,7 +171,7 @@ export default {
       await db.set('asgm_night_time', nightTime)
       await db.set('asgm_morning_time', morningTime)
       return await sock.sendMessage(from, {
-        text: `╔═━━━━━━━━━━━━━━━━═❒\n║ 🌙 Night Mode ON\n║ Close: ${nightTime}\n║ Open: ${morningTime}\n╚━━━━━━━━━━━━━━━━━═❒`
+        text: `╭━━━━❮ sᴜᴄᴄᴇss ❯━⊷\n┃➠ Night Mode ON\n┃➠ Close: ${nightTime}\n┃➠ Open: ${morningTime}\n╰━━━━━━━━━━━━━━━━━⊷`
       }, { quoted: m })
     }
 
@@ -190,14 +190,14 @@ export default {
         const current = await db.get(keyMap[feature])
         await db.set(keyMap[feature],!current)
         return await sock.sendMessage(from, {
-          text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ⚙️ ${feature.toUpperCase()} ${!current? 'ON' : 'OFF'}\n╚━━━━━━━━━━━━━━━━━═❒`
+          text: `╭━━━━❮ sᴜᴄᴄᴇss ❯━⊷\n┃➠ ${feature.toUpperCase()} ${!current? 'ON' : 'OFF'}\n╰━━━━━━━━━━━━━━━━━⊷`
         }, { quoted: m })
       }
     }
 
     // INVALID
     await sock.sendMessage(from, {
-      text: `╔═━━━━━━━━━━━━━━━━═❒\n║ ❌ Invalid command\n║ Use: ${prefix}asgm status\n╚━━━━━━━━━━━━━━━━━═❒`
+      text: `╭━━━━❮ ᴇʀʀᴏʀ ❯━⊷\n┃➠ Invalid command\n┃➠ Use: ${prefix}asgm status\n╰━━━━━━━━━━━━━━━━━⊷`
     }, { quoted: m })
   }
 }
