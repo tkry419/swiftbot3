@@ -27,6 +27,23 @@ const JOBS = [
   { name: 'Engineer', emoji: '🔧', min: 500, max: 1800, xp: 40, msg: 'You built a robot that does homework' }
 ]
 
+const RANDOM_EVENTS = [
+  { type: 'bonus', chance: 0.15, msg: 'Boss gave you a bonus', min: 200, max: 1000 },
+  { type: 'tip', chance: 0.1, msg: 'Customer left a huge tip', min: 100, max: 500 },
+  { type: 'promotion', chance: 0.05, msg: 'You got promoted for this shift', multiplier: 1.5 },
+  { type: 'overtime', chance: 0.08, msg: 'You worked overtime', multiplier: 1.3 },
+  { type: 'tax', chance: 0.05, msg: 'Tax office took a cut', multiplier: 0.8 },
+  { type: 'fine', chance: 0.03, msg: 'You broke equipment', min: 100, max: 300 }
+]
+
+const getJobLevel = (xp) => {
+  if (xp >= 10000) return { level: 5, title: 'CEO', multiplier: 2.0 }
+  if (xp >= 5000) return { level: 4, title: 'Manager', multiplier: 1.7 }
+  if (xp >= 2000) return { level: 3, title: 'Senior', multiplier: 1.4 }
+  if (xp >= 500) return { level: 2, title: 'Expert', multiplier: 1.2 }
+  return { level: 1, title: 'Intern', multiplier: 1.0 }
+}
+
 export default {
   name: 'work',
   alias: ['job', 'earn', 'grind'],
@@ -38,7 +55,7 @@ export default {
   execute: async (sock, m, args, { db, prefix, isGroup }) => {
     const from = m.key.remoteJid
     const sender = m.key.participant || m.key.remoteJid
-    
+
     // 1. CHECK IF ECONOMY ENABLED FOR THIS GROUP
     if (isGroup) {
       const ecoEnabled = await db.getGroupKey(from, 'eco_enabled')
@@ -61,6 +78,8 @@ export default {
     const xpKey = `eco_${groupId}_xp_${sender}`
     const jobKey = `eco_${groupId}_job_${sender}`
     const workCountKey = `eco_${groupId}_workcount_${sender}`
+    const streakKey = `eco_${groupId}_streak_${sender}`
+    const lastStreakKey = `eco_${groupId}_laststreak_${sender}`
 
     // 3. FETCH DATA FROM DB
     const [
@@ -69,14 +88,18 @@ export default {
       currentXp,
       workCount,
       currency,
-      jailTime
+      jailTime,
+      streak,
+      lastStreak
     ] = await Promise.all([
       db.get(balanceKey),
       db.get(lastWorkKey),
       db.get(xpKey),
       db.get(workCountKey),
       db.getGroupKey(groupId, 'eco_currency'),
-      db.get(`eco_${groupId}_jail_${sender}`)
+      db.get(`eco_${groupId}_jail_${sender}`),
+      db.get(streakKey),
+      db.get(lastStreakKey)
     ])
 
     // 4. CHECK JAIL STATUS
@@ -108,13 +131,58 @@ export default {
       }, { quoted: m })
     }
 
-    // 6. RANDOM JOB SELECTION
+    // 6. STREAK SYSTEM
+    const oneHour = 60 * 60 * 1000
+    let currentStreak = streak || 0
+    if (lastStreak && now - lastStreak <= oneHour) {
+      currentStreak++
+    } else if (lastStreak && now - lastStreak > oneHour * 2) {
+      currentStreak = 1
+    } else {
+      currentStreak = currentStreak || 1
+    }
+    const streakBonus = Math.min(currentStreak * 0.05, 0.5) // Max 50% bonus
+
+    // 7. RANDOM JOB SELECTION
     const job = JOBS[Math.floor(Math.random() * JOBS.length)]
-    const earned = Math.floor(Math.random() * (job.max - job.min + 1)) + job.min
-    const xpGained = job.xp + Math.floor(Math.random() * 20) // Bonus XP
+    let earned = Math.floor(Math.random() * (job.max - job.min + 1)) + job.min
+    let xpGained = job.xp + Math.floor(Math.random() * 20) // Bonus XP
     const currencySymbol = currency || '$'
 
-    // 7. UPDATE DB
+    // 8. LEVEL SYSTEM
+    const jobLevel = getJobLevel(currentXp || 0)
+    earned = Math.floor(earned * jobLevel.multiplier)
+
+    // 9. APPLY STREAK BONUS
+    earned = Math.floor(earned * (1 + streakBonus))
+
+    // 10. RANDOM EVENTS
+    let eventMsg = ''
+    let eventAmount = 0
+    const eventRoll = Math.random()
+    let cumulativeChance = 0
+
+    for (const event of RANDOM_EVENTS) {
+      cumulativeChance += event.chance
+      if (eventRoll < cumulativeChance) {
+        if (event.multiplier) {
+          earned = Math.floor(earned * event.multiplier)
+          eventMsg = `🎲 ${event.msg}`
+        } else {
+          eventAmount = Math.floor(Math.random() * (event.max - event.min + 1)) + event.min
+          if (event.type === 'fine') {
+            earned = Math.max(0, earned - eventAmount)
+            eventMsg = `🎲 ${event.msg} -${currencySymbol}${formatCash(eventAmount)}`
+          } else {
+            earned += eventAmount
+            eventMsg = `🎲 ${event.msg} +${currencySymbol}${formatCash(eventAmount)}`
+          }
+        }
+        break
+      }
+    }
+
+    // 11. UPDATE DB
     const newBalance = (balance || 0) + earned
     const newXp = (currentXp || 0) + xpGained
     const newWorkCount = (workCount || 0) + 1
@@ -124,10 +192,12 @@ export default {
       db.set(lastWorkKey, now),
       db.set(xpKey, newXp),
       db.set(jobKey, job.name),
-      db.set(workCountKey, newWorkCount)
+      db.set(workCountKey, newWorkCount),
+      db.set(streakKey, currentStreak),
+      db.set(lastStreakKey, now)
     ])
 
-    // 8. GET GROUP NAME
+    // 12. GET GROUP NAME
     let groupName = 'Global'
     if (isGroup) {
       try {
@@ -138,17 +208,19 @@ export default {
       }
     }
 
-    // 9. SEND WORK RESULT BOX
+    // 13. SEND WORK RESULT BOX
     await sock.sendMessage(from, {
       text: `╔═〘 ${job.emoji}ᴡᴏʀᴋ 〙═╗
 ┃➠ ᴊᴏʙ ᴄᴏᴍᴘʟᴇᴛᴇᴅ
 ┃➠ ɢʀᴏᴜᴘ: ${groupName}
 ┃
 ┃➠ 💼 ᴊᴏʙ: ${job.name}
+┃➠ 🏆 ʀᴀɴᴋ: ${jobLevel.title} LV${jobLevel.level}
 ┃➠ 📝 ᴛᴀsᴋ: ${job.msg}
-┃
+┃${eventMsg? '\n┃➠ ' + eventMsg + '\n┃' : ''}
 ┃➠ 💰 ᴇᴀʀɴᴇᴅ: ${currencySymbol}${formatCash(earned)}
 ┃➠ ⭐ xᴘ ɢᴀɪɴᴇᴅ: +${xpGained}
+┃➠ 🔥 sᴛʀᴇᴀᴋ: ${currentStreak}x (+${Math.floor(streakBonus * 100)}%)
 ┃➠ 💰 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ${currencySymbol}${formatCash(newBalance)}
 ┃
 ┃➠ 💼 ᴛᴏᴛᴀʟ ᴡᴏʀᴋs: ${newWorkCount}
@@ -158,10 +230,9 @@ export default {
 ╭━━━━❮ ᴛɪᴘs ❯━⊷
 ┃➠ ᴡᴏʀᴋ ᴇᴠᴇʀʏ 10ᴍ ᴛᴏ ɢʀɪɴᴅ
 ┃➠ ʜɪɢʜᴇʀ ʟᴇᴠᴇʟ = ʙᴇᴛᴛᴇʀ ᴊᴏʙs
+┃➠ ᴋᴇᴇᴘ sᴛʀᴇᴀᴋ ғᴏʀ ʙᴏɴᴜs
 ┃➠ ${prefix}bank - Check balance
-╰━━━━━━━━━━━━━━━━━⊷
-
-> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪɴᴄᴇ ᴛᴇᴄʜ*`
+╰━━━━━━━━━━━━━━━━━⊷`
     }, { quoted: m })
   }
 }
