@@ -36,16 +36,16 @@ export default {
     const secs = Math.floor(uptime % 60)
     const mem = process.memoryUsage()
     const used = (mem.heapUsed / 1024).toFixed(1)
-    const total = (mem.heapTotal / 1024 / 1024).toFixed(1)
+    const total = (mem.heapTotal / 1024).toFixed(1)
     const ramPercent = Math.floor((mem.heapUsed / mem.heapTotal) * 100)
     const ramBars = '▣'.repeat(Math.floor(ramPercent / 20)) + '□'.repeat(5 - Math.floor(ramPercent / 20))
     const speed = (Math.random() * 150 + 50).toFixed(4)
 
-    // HEADER - NEW BOX STYLE
+    // HEADER - SINGLE LINE BOX STYLE
     let msg = `
-╔═〘 ${botname.toUpperCase()} 〙═╗
-╚═══════════════════╝
-╔═〘 ᴅᴇᴛᴀɪʟs 〙═╗
+╭━━━━❮ ${botname.toUpperCase()} ❯━⊷
+╰━━━━━━━━━━━━━━━━━⊷
+╭━━━━❮ ᴅᴇᴛᴀɪʟs ❯━⊷
 ┃➠ ᴘʀᴇғɪx: [ ${prefix} ]
 ┃➠ ᴏᴡɴᴇʀ: ${ownerName || owner || 'Not Set'}
 ┃➠ ᴄʀᴇᴅɪᴛ: ${credit || 'SwiftBot Tech'}
@@ -56,10 +56,10 @@ export default {
 ┃➠ ᴠᴇʀsɪᴏɴ: ${version || '3.2.0'}
 ┃➠ ʀᴀᴍ: ${ramBars} ${ramPercent}%
 ┃➠ ᴜsᴀɢᴇ: ${used}MB of ${total}MB
-╚═══════════════════╝
+╰━━━━━━━━━━━━━━━━━⊷
 `
 
-    // ALL CATEGORIES + COMMANDS - NEW BOX STYLE
+    // ALL CATEGORIES + COMMANDS - SINGLE LINE BOX STYLE
     const categories = getAllCategories()
 
     for (const cat of categories) {
@@ -67,14 +67,14 @@ export default {
       if (!cmds.length) continue
 
       msg += `
-╔═〘 ${cat.name.toUpperCase()} ᴍᴇɴᴜ 〙═╗
+╭━━━━❮ ${cat.name.toUpperCase()} ᴍᴇɴᴜ ❯━⊷
 `
       // Commands zote za category hii - NAME ONLY
       cmds.forEach(cmd => {
         msg += `┃➠ ${prefix}${cmd.name}\n`
       })
 
-      msg += `╚═══════════════════╝`
+      msg += `╰━━━━━━━━━━━━━━━━━⊷`
     }
 
     await sock.sendMessage(from, {
