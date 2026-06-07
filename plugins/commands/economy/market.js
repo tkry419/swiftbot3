@@ -1,6 +1,6 @@
 /**
  * SwiftBot - plugins/commands/economy/market.js
- * Group-Based Marketplace - View and buy player listings
+ * Group-Based Marketplace - View listings with simple numeric IDs
  * Uses db keys: eco_${groupJid}_market_list, eco_${groupJid}_balance_${user}
  */
 
@@ -15,14 +15,15 @@ const formatTime = (ms) => {
     const days = Math.floor(hours / 24)
     return `${days}d ${hours % 24}h`
   }
-  return `${hours}h ${minutes}m`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
 }
 
 export default {
   name: 'market',
   alias: ['marketplace', 'listings', 'mkt'],
   desc: 'View marketplace listings from other players',
-  usage: '[page] | buy <listing_id>',
+  usage: '[page]',
   category: 'Economy',
   permission: 'all',
 
@@ -64,7 +65,18 @@ export default {
       }, { quoted: m })
     }
 
-    // 4. PAGINATION
+    // 4. GET GROUP NAME
+    let groupName = 'Global'
+    if (isGroup) {
+      try {
+        const groupMetadata = await sock.groupMetadata(from)
+        groupName = groupMetadata.subject
+      } catch {
+        groupName = 'This Group'
+      }
+    }
+
+    // 5. PAGINATION - 10 per page
     const page = parseInt(args[0]) || 1
     const perPage = 10
     const totalPages = Math.ceil(marketList.length / perPage)
@@ -83,26 +95,35 @@ export default {
       }, { quoted: m })
     }
 
-    // 5. BUILD LISTING TEXT
-    let listingText = `╔═〘 🏪ᴍᴀʀᴋᴇᴛ 〙═╗\n┃➠ ᴘᴀɢᴇ ${page}/${totalPages} | ${marketList.length} ʟɪsᴛɪɴɢs\n┃\n`
+    // 6. BUILD LISTING TEXT - SIMPLE NUMERIC IDs
+    let listingText = `╔═〘 🏪ᴍᴀʀᴋᴇᴛ 〙═╗
+┃➠ ɢʀᴏᴜᴘ: ${groupName}
+┃➠ ᴘᴀɢᴇ ${page}/${totalPages} | ${marketList.length} ʟɪsᴛɪɴɢs
+┃
+`
 
     for (const listing of pageListings) {
       const timeAgo = formatTime(Date.now() - listing.timestamp)
       const sellerTag = listing.seller.split('@')[0]
+      listingText += `┃➠ ━━━ ID: ${listing.id} ━━━\n`
       listingText += `┃➠ ${listing.emoji} ${listing.itemName} x${listing.amount}\n`
       listingText += `┃➠ 💰 ᴘʀɪᴄᴇ: ${currency}${formatCash(listing.price)} (${currency}${formatCash(listing.pricePerUnit)} ᴇᴀ)\n`
       listingText += `┃➠ 👤 sᴇʟʟᴇʀ: @${sellerTag}\n`
-      listingText += `┃➠ 🆔 ɪᴅ: ${listing.id}\n`
       listingText += `┃➠ ⏰ ${timeAgo} ᴀɢᴏ\n┃\n`
     }
 
-    listingText += `╚═══════════════════╝\n\n╭━━━━❮ ɪɴғᴏ ❯━⊷\n`
-    listingText += `┃➠ ᴜsᴇ ${prefix}pay @seller ${currency}amount ᴛᴏ ʙᴜʏ\n`
-    listingText += `┃➠ ᴏʀ ${prefix}pay ${prefix}buy <id> ᴛᴏ ʙᴜʏ\n`
-    listingText += `┃➠ ᴜsᴇ ${prefix}market <page> ғᴏʀ ᴍᴏʀᴇ\n`
-    listingText += `┃➠ ${prefix}sell ᴛᴏ ʟɪsᴛ ʏᴏᴜʀ ɪᴛᴇᴍs\n╰━━━━━━━━━━━━━━━━━⊷`
+    listingText += `╚═══════════════════╝
 
-    // 6. GET ALL MENTIONS FOR SELLERS
+╭━━━━❮ ʜᴏᴡ ᴛᴏ ʙᴜʏ ❯━⊷
+┃➠ ${prefix}pay <id>
+┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}pay 1
+┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}pay 5
+┃
+┃➠ ${prefix}market <page> ғᴏʀ ᴍᴏʀᴇ
+┃➠ ${prefix}sell ᴛᴏ ʟɪsᴛ ʏᴏᴜʀ ɪᴛᴇᴍs
+╰━━━━━━━━━━━━━━━━━⊷`
+
+    // 7. GET ALL MENTIONS FOR SELLERS
     const mentions = pageListings.map(l => l.seller)
 
     await sock.sendMessage(from, {
