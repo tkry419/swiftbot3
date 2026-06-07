@@ -25,7 +25,7 @@ export default {
   execute: async (sock, m, args, { db, prefix, isGroup }) => {
     const from = m.key.remoteJid
     const sender = m.key.participant || m.key.remoteJid
-    
+
     // 1. CHECK IF ECONOMY ENABLED FOR THIS GROUP
     if (isGroup) {
       const ecoEnabled = await db.getGroupKey(from, 'eco_enabled')
@@ -142,7 +142,7 @@ export default {
       }
     }
 
-    // 10. SEND REWARD BOX
+    // 10. SEND REWARD BOX - CLEAN
     await sock.sendMessage(from, {
       text: `╔═〘 🎁ᴅᴀɪʟʏ 〙═╗
 ┃➠ ᴄʟᴀɪᴍᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ
@@ -150,22 +150,20 @@ export default {
 ┃
 ┃➠ 💰 ʙᴀsᴇ ʀᴇᴡᴀʀᴅ: ${currencySymbol}${formatCash(baseAmount)}
 ┃➠ 🔥 sᴛʀᴇᴀᴋ ʙᴏɴᴜs: +${currencySymbol}${formatCash(streakBonus)}
-┃➠ 💎 ᴛᴏᴛᴀʟ ᴡᴏɴ   : ${currencySymbol}${formatCash(totalReward)}
-┃➠ ⭐ xᴘ ɢᴀɪɴᴇᴅ  : +${xpReward}
+┃➠ 💎 ᴛᴏᴛᴀʟ ᴡᴏɴ : ${currencySymbol}${formatCash(totalReward)}
+┃➠ ⭐ xᴘ ɢᴀɪɴᴇᴅ : +${xpReward}
 ┃
-┃➠ 🔥 sᴛʀᴇᴀᴋ     : ${currentStreak} ᴅᴀʏs
+┃➠ 🔥 sᴛʀᴇᴀᴋ : ${currentStreak} ᴅᴀʏs
 ┃➠ 💰 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ${currencySymbol}${formatCash(newBalance)}
 ┃
-┃➠ ⏰ ɴᴇxᴛ ᴄʟᴀɪᴍ  : 24ʜ
+┃➠ ⏰ ɴᴇxᴛ ᴄʟᴀɪᴍ : 24ʜ
 ╚═══════════════════╝
 
 ╭━━━━❮ ᴛɪᴘs ❯━⊷
 ┃➠ ᴍᴀɪɴᴛᴀɪɴ sᴛʀᴇᴀᴋ ғᴏʀ ʙɪɢɢᴇʀ ʙᴏɴᴜs
 ┃➠ ᴍᴀx sᴛʀᴇᴀᴋ ʙᴏɴᴜs: ${currencySymbol}5,000
 ┃➠ ${prefix}bank - Check balance
-╰━━━━━━━━━━━━━━━━━⊷
-
-> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪɴᴄᴇ ᴛᴇᴄʜ*`
+╰━━━━━━━━━━━━━━━━━⊷`
     }, { quoted: m })
   }
 }
