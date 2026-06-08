@@ -1,14 +1,14 @@
 /**
  * SwiftBot - plugins/commands/channel/post.js
- * Post to channel - supports text, media, reply, captions
- * Uses db keys: channel_${id}_posts, channel_${id}_admins, channel_${id}_owner
+ * Post to channel - supports text/media/reply + channelJid
+ * Uses db keys: channel_${id}_posts, channel_${id}_admins, channel_${id}_jid
  */
 
 export default {
   name: 'post',
   alias: ['send', 'announce'],
-  desc: 'Post to a channel - text/media/reply supported',
-  usage: '<channel_id> <text> OR reply to media with <channel_id>',
+  desc: 'Post to a channel - text/media/reply + WhatsApp Channel JID supported',
+  usage: '<channel_id|channelJid> <text> OR reply to media',
   category: 'channel',
   permission: 'all',
 
@@ -16,67 +16,96 @@ export default {
     const from = m.key.remoteJid
     const sender = m.key.participant || m.key.remoteJid
 
-    // 1. GET CHANNEL ID
-    const channelId = args[0]?.toLowerCase()
-    if (!channelId) {
+    // 1. GET CHANNEL ID OR JID
+    const target = args[0]?.toLowerCase()
+    if (!target) {
       return await sock.sendMessage(from, {
         text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
-┃➠ ᴍɪssɪɴɢ ᴄʜᴀɴɴᴇʟ ɪᴅ
+┃➠ ᴍɪssɪɴɢ ᴄʜᴀɴɴᴇʟ ɪᴅ/ᴊɪᴅ
 ┃
 ┃➠ ᴜsᴀɢᴇ: ${prefix}post <id> <text>
-┃➠ ᴏʀ ʀᴇᴘʟʏ ᴛᴏ ᴍᴇᴅɪᴀ: ${prefix}post <id>
+┃➠ ᴜsᴀɢᴇ: ${prefix}post <channelJid> <text>
+┃➠ ᴏʀ ʀᴇᴘʟʏ ᴛᴏ ᴍᴇᴅɪᴀ
 ┃
 ┃➠ ${prefix}channel list - ᴠɪᴇᴡ ɪᴅs
 ╚═══════════════════╝`
       }, { quoted: m })
     }
 
-    // 2. CHECK CHANNEL EXISTS
-    const channelList = JSON.parse(await db.get('channel_list') || '[]')
-    const channel = channelList.find(ch => ch.id === channelId)
+    let channelId = null
+    let channelJid = null
+    let channel = null
+    let isWhatsAppChannel = false
 
-    if (!channel) {
-      return await sock.sendMessage(from, {
-        text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
-┃➠ ᴄʜᴀɴɴᴇʟ ɴᴏᴛ ғᴏᴜɴᴅ
+    // Check if it's a WhatsApp Channel JID or Group JID
+    if (target.includes('@newsletter') || target.includes('@g.us')) {
+      channelJid = target
+      isWhatsAppChannel = true
+      channel = { id: channelJid, name: 'WhatsApp Channel' }
+    } else {
+      // Check local channel DB
+      channelId = target
+      const channelList = JSON.parse(await db.get('channel_list') || '[]')
+      channel = channelList.find(ch => ch.id === channelId)
+
+      if (!channel) {
+        return await sock.sendMessage(from, {
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+┃➠ ᴄʜᴀɴᴇʟ ɴᴏᴛ ғᴏᴜɴᴅ
 ┃➠ ɪᴅ: ${channelId}
 ┃➠ ${prefix}channel list
 ╚═══════════════════╝`
-      }, { quoted: m })
+        }, { quoted: m })
+      }
+
+      // Get linked WhatsApp Channel JID if exists
+      channelJid = await db.get(`channel_${channelId}_jid`)
     }
 
-    // 3. CHECK PERMISSION
-    const [owner, admins] = await Promise.all([
-      db.get(`channel_${channelId}_owner`),
-      db.get(`channel_${channelId}_admins`)
-    ])
-    const adminList = JSON.parse(admins || '[]')
+    // 2. CHECK PERMISSION FOR LOCAL CHANNELS
+    if (!isWhatsAppChannel) {
+      const [owner, admins] = await Promise.all([
+        db.get(`channel_${channelId}_owner`),
+        db.get(`channel_${channelId}_admins`)
+      ])
+      const adminList = JSON.parse(admins || '[]')
 
-    if (owner!== sender &&!adminList.includes(sender) &&!isOwner) {
-      return await sock.sendMessage(from, {
-        text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+      if (owner!== sender &&!adminList.includes(sender) &&!isOwner) {
+        return await sock.sendMessage(from, {
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ɴᴏ ᴘᴇʀᴍɪssɪᴏɴ
 ┃➠ ᴏɴʟʏ ᴄʜᴀɴɴᴇʟ ᴀᴅᴍɪɴs ᴄᴀɴ ᴘᴏsᴛ
 ╚═══════════════════╝`
-      }, { quoted: m })
+        }, { quoted: m })
+      }
+    } else {
+      // For WhatsApp Channels, only bot owner can post
+      if (!isOwner) {
+        return await sock.sendMessage(from, {
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+┃➠ ᴏɴʟʏ ʙᴏᴛ ᴏᴡɴᴇʀ ᴄᴀɴ ᴘᴏsᴛ ᴛᴏ ᴡʜᴀᴛsᴀᴘᴘ ᴄʜᴀɴᴇʟs
+╚═══════════════════╝`
+        }, { quoted: m })
+      }
     }
 
-    // 4. GET CONTENT - TEXT OR REPLY
+    // 3. GET CONTENT - TEXT OR REPLY
     const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage
     const textArgs = args.slice(1).join(' ').trim()
 
     let postContent = {
-      channelId,
+      channelId: channel.id,
       channelName: channel.name,
       by: sender,
       time: Date.now(),
       type: 'text',
       text: '',
       media: null,
-      mimetype: null
+      mimetype: null,
+      fileName: null
     }
 
-    // 4a. HANDLE REPLIED MEDIA
+    // 3a. HANDLE REPLIED MEDIA
     if (quoted) {
       const quotedType = Object.keys(quoted)[0]
 
@@ -122,13 +151,13 @@ export default {
         }, { quoted: m })
       }
 
-    // 4b. HANDLE DIRECT TEXT
+    // 3b. HANDLE DIRECT TEXT
     } else {
       if (!textArgs) {
         return await sock.sendMessage(from, {
           text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ᴍɪssɪɴɢ ᴛᴇxᴛ
-┃➠ ᴜsᴀɢᴇ: ${prefix}post ${channelId} <text>
+┃➠ ᴜsᴀɢᴇ: ${prefix}post ${target} <text>
 ┃➠ ᴏʀ ʀᴇᴘʟʏ ᴛᴏ ᴍᴇᴅɪᴀ
 ╚═══════════════════╝`
         }, { quoted: m })
@@ -136,72 +165,51 @@ export default {
       postContent.text = textArgs
     }
 
-    // 5. SAVE POST TO DB
-    const posts = JSON.parse(await db.get(`channel_${channelId}_posts`) || '[]')
-
-    // Don't save media buffer in DB - too large. Save metadata only
-    const dbPost = {
-      type: postContent.type,
-      text: postContent.text,
-      by: postContent.by,
-      time: postContent.time,
-      mimetype: postContent.mimetype,
-      fileName: postContent.fileName || null
+    // 4. SAVE POST TO DB FOR LOCAL CHANNELS
+    if (!isWhatsAppChannel) {
+      const posts = JSON.parse(await db.get(`channel_${channelId}_posts`) || '[]')
+      const dbPost = {
+        type: postContent.type,
+        text: postContent.text,
+        by: postContent.by,
+        time: postContent.time,
+        mimetype: postContent.mimetype,
+        fileName: postContent.fileName || null
+      }
+      posts.unshift(dbPost)
+      if (posts.length > 50) posts.pop()
+      await db.set(`channel_${channelId}_posts`, JSON.stringify(posts))
     }
 
-    posts.unshift(dbPost) // Add to start
-    if (posts.length > 50) posts.pop() // Keep last 50 posts only
-
-    await db.set(`channel_${channelId}_posts`, JSON.stringify(posts))
-
-    // 6. SEND CONFIRMATION
-    let confirmText = `╔═〘 ✅ᴘᴏsᴛᴇᴅ 〙═╗
-┃➠ ᴄʜᴀɴɴᴇʟ: ${channel.name}
-┃➠ ɪᴅ: ${channelId}
-┃➠ ᴛʏᴘᴇ: ${postContent.type.toUpperCase()}
-┃
-┃➠ ᴘᴏsᴛ ɪᴅ: ${posts.length}
-┃➠ ᴛᴏᴛᴀʟ ᴘᴏsᴛs: ${posts.length}
-╚═══════════════════╝`
+    // 5. SEND TO WHATSAPP CHANNEL/GROUP IF JID EXISTS
+    const targetJid = channelJid || from
+    let caption = postContent.text
 
     if (postContent.type === 'text') {
-      confirmText += `\n\n📝 ${postContent.text.slice(0, 100)}${postContent.text.length > 100? '...' : ''}`
+      await sock.sendMessage(targetJid, { text: postContent.text })
+    } else {
+      const msgOptions = { caption: caption || undefined }
+      if (postContent.type === 'image') msgOptions.image = postContent.media
+      if (postContent.type === 'video') msgOptions.video = postContent.media
+      if (postContent.type === 'audio') msgOptions.audio = postContent.media
+      if (postContent.type === 'document') {
+        msgOptions.document = postContent.media
+        msgOptions.fileName = postContent.fileName
+        msgOptions.mimetype = postContent.mimetype
+      }
+      await sock.sendMessage(targetJid, msgOptions)
     }
 
-    await sock.sendMessage(from, { text: confirmText }, { quoted: m })
-
-    // 7. BROADCAST TO CHANNEL MEMBERS - Optional
-    const broadcast = args.includes('--broadcast') || args.includes('-b')
-    if (broadcast && isGroup) {
-      const groupMetadata = await sock.groupMetadata(from)
-      const participants = groupMetadata.participants.map(p => p.id)
-
-      let broadcastMsg = `╔═〘 📢${channel.name.toUpperCase()} 〙═╗\n┃\n`
-
-      if (postContent.type === 'text') {
-        broadcastMsg += `┃ ${postContent.text}\n`
-      } else {
-        broadcastMsg += `┃ 📎 ${postContent.type.toUpperCase()} ᴘᴏsᴛᴇᴅ\n`
-        if (postContent.text) broadcastMsg += `┃ ᴄᴀᴘᴛɪᴏɴ: ${postContent.text}\n`
-      }
-
-      broadcastMsg += `┃\n╚═══════════════════╝`
-
-      // Send media if exists
-      if (postContent.media) {
-        const msgOptions = { caption: broadcastMsg }
-        if (postContent.type === 'image') msgOptions.image = postContent.media
-        if (postContent.type === 'video') msgOptions.video = postContent.media
-        if (postContent.type === 'audio') msgOptions.audio = postContent.media
-        if (postContent.type === 'document') {
-          msgOptions.document = postContent.media
-          msgOptions.fileName = postContent.fileName
-          msgOptions.mimetype = postContent.mimetype
-        }
-        await sock.sendMessage(from, msgOptions)
-      } else {
-        await sock.sendMessage(from, { text: broadcastMsg })
-      }
-    }
+    // 6. SEND CONFIRMATION
+    const posts = isWhatsAppChannel? [] : JSON.parse(await db.get(`channel_${channelId}_posts`) || '[]')
+    return await sock.sendMessage(from, {
+      text: `╔═〘 ✅ᴘᴏsᴛᴇᴅ 〙═╗
+┃➠ ᴄʜᴀɴɴᴇʟ: ${channel.name}
+┃➠ ᴛᴏ: ${isWhatsAppChannel? 'WhatsApp Channel' : 'Local DB'}
+┃➠ ᴛʏᴘᴇ: ${postContent.type.toUpperCase()}
+┃
+┃➠ ${isWhatsAppChannel? 'sᴇɴᴛ' : `ᴘᴏsᴛ ɪᴅ: ${posts.length}`}
+╚═══════════════════╝`
+    }, { quoted: m })
   }
 }
