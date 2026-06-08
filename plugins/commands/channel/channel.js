@@ -2,14 +2,14 @@
  * SwiftBot - plugins/commands/channel/channel.js
  * Channel Management System - Create announcement channels
  * Category: channel
- * Uses db keys: channel_list, channel_${id}_owner, channel_${id}_admins
+ * Uses db keys: channel_list, channel_${id}_owner, channel_${id}_admins, channel_${id}_jid
  */
 
 export default {
   name: 'channel',
   alias: ['ch', 'announce'],
   desc: 'Create and manage announcement channels',
-  usage: 'create <name> | list | info <id> | delete <id> | addadmin <id> @user',
+  usage: 'create <name> | list | info <id> | delete <id> | addadmin <id> @user | link <id> <channelJid>',
   category: 'channel',
   permission: 'all',
 
@@ -45,7 +45,7 @@ export default {
       if (channelList.some(ch => ch.name.toLowerCase() === channelName.toLowerCase())) {
         return await sock.sendMessage(from, {
           text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
-┃➠ ᴄʜᴀɴɴᴇʟ ɴᴀᴍᴇ ᴇxɪsᴛs
+┃➠ ᴄʜᴀɴᴇʟ ɴᴀᴍᴇ ᴇxɪsᴛs
 ┃➠ ᴜsᴇ ${prefix}channel list
 ╚═══════════════════╝`
         }, { quoted: m })
@@ -75,6 +75,7 @@ export default {
 ┃
 ┃➠ ᴘᴏsᴛ: ${prefix}post ${channelId} <text>
 ┃➠ ᴀᴅᴍɪɴ: ${prefix}channel addadmin ${channelId} @user
+┃➠ ʟɪɴᴋ: ${prefix}channel link ${channelId} <channelJid>
 ╚═══════════════════╝`
       }, { quoted: m })
     }
@@ -99,6 +100,7 @@ export default {
         const owner = await db.get(`channel_${ch.id}_owner`)
         const admins = JSON.parse(await db.get(`channel_${ch.id}_admins`) || '[]')
         const posts = JSON.parse(await db.get(`channel_${ch.id}_posts`) || '[]')
+        const jid = await db.get(`channel_${ch.id}_jid`)
 
         const isOwnerCh = owner === sender
         const isAdminCh = admins.includes(sender)
@@ -106,7 +108,8 @@ export default {
         if (isOwnerCh || isAdminCh || isOwner) {
           hasAccess = true
           const role = isOwnerCh? '👑 OWNER' : isAdminCh? '⭐ ADMIN' : 'VIEW'
-          listText += `┃➠ ${ch.name}\n`
+          const linked = jid? '🔗' : ''
+          listText += `┃➠ ${linked}${ch.name}\n`
           listText += `┃ └─ ɪᴅ: ${ch.id} | ${role}\n`
           listText += `┃ └─ ᴘᴏsᴛs: ${posts.length}\n┃\n`
         }
@@ -144,15 +147,16 @@ export default {
       if (!channel) {
         return await sock.sendMessage(from, {
           text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
-┃➠ ᴄʜᴀɴɴᴇʟ ɴᴏᴛ ғᴏᴜɴᴅ
+┃➠ ᴄʜᴀɴᴇʟ ɴᴏᴛ ғᴏᴜɴᴅ
 ╚═══════════════════╝`
         }, { quoted: m })
       }
 
-      const [owner, admins, posts] = await Promise.all([
+      const [owner, admins, posts, jid] = await Promise.all([
         db.get(`channel_${channel.id}_owner`),
         db.get(`channel_${channel.id}_admins`),
-        db.get(`channel_${channel.id}_posts`)
+        db.get(`channel_${channel.id}_posts`),
+        db.get(`channel_${channel.id}_jid`)
       ])
 
       const adminList = JSON.parse(admins || '[]')
@@ -161,7 +165,7 @@ export default {
       if (owner!== sender &&!adminList.includes(sender) &&!isOwner) {
         return await sock.sendMessage(from, {
           text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
-┃➠ ɴᴏ ᴀᴄᴇss ᴛᴏ ᴛʜɪs ᴄʜᴀɴɴᴇʟ
+┃➠ ɴᴏ ᴀᴄᴇss ᴛᴏ ᴛʜɪs ᴄʜᴀɴᴇʟ
 ╚═══════════════════╝`
         }, { quoted: m })
       }
@@ -170,7 +174,7 @@ export default {
       const isAdminCh = adminList.includes(sender)
 
       return await sock.sendMessage(from, {
-        text: `╔═〘 📢ᴄʜᴀɴɴᴇʟ ɪɴғᴏ 〙═╗
+        text: `╔═〘 📢ᴄʜᴀɴᴇʟ ɪɴғᴏ 〙═╗
 ┃➠ ɴᴀᴍᴇ: ${channel.name}
 ┃➠ ɪᴅ: ${channel.id}
 ┃➠ ᴄʀᴇᴀᴛᴇᴅ: ${new Date(channel.created).toLocaleDateString()}
@@ -178,6 +182,7 @@ export default {
 ┃➠ 👑 ᴏᴡɴᴇʀ: @${owner.split('@')[0]}
 ┃➠ ⭐ ᴀᴅᴍɪɴs: ${adminList.length}
 ┃➠ 📝 ᴘᴏsᴛs: ${postList.length}
+┃➠ 🔗 ʟɪɴᴋᴇᴅ: ${jid? 'Yes' : 'No'}
 ┃
 ┃➠ ʏᴏᴜʀ ʀᴏʟᴇ: ${isOwnerCh? 'Owner 👑' : isAdminCh? 'Admin ⭐' : isOwner? 'Bot Owner' : 'None'}
 ╚═══════════════════╝`,
@@ -211,7 +216,7 @@ export default {
       if (channelIndex === -1) {
         return await sock.sendMessage(from, {
           text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
-┃➠ ᴄʜᴀɴɴᴇʟ ɴᴏᴛ ғᴏᴜɴᴅ
+┃➠ ᴄʜᴀɴᴇʟ ɴᴏᴛ ғᴏᴜɴᴅ
 ╚═══════════════════╝`
         }, { quoted: m })
       }
@@ -223,7 +228,8 @@ export default {
         db.set('channel_list', JSON.stringify(channelList)),
         db.set(`channel_${channelId}_owner`, null),
         db.set(`channel_${channelId}_admins`, null),
-        db.set(`channel_${channelId}_posts`, null)
+        db.set(`channel_${channelId}_posts`, null),
+        db.set(`channel_${channelId}_jid`, null)
       ])
 
       return await sock.sendMessage(from, {
@@ -277,6 +283,40 @@ export default {
       }, { quoted: m })
     }
 
+    // 6. LINK WHATSAPP CHANNEL JID
+    if (subCmd === 'link') {
+      if (!isOwner) {
+        return await sock.sendMessage(from, {
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+┃➠ ᴏɴʟʏ ᴏᴡɴᴇʀ ᴄᴀɴ ʟɪɴᴋ
+╚═══════════════════╝`
+        }, { quoted: m })
+      }
+
+      const channelId = args[1]
+      const channelJid = args[2]
+
+      if (!channelId ||!channelJid) {
+        return await sock.sendMessage(from, {
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+┃➠ ᴜsᴀɢᴇ: ${prefix}channel link <id> <channelJid>
+┃➠ ᴇx: ${prefix}channel link updates_1234 123456789@newsletter
+╚═══════════════════╝`
+        }, { quoted: m })
+      }
+
+      await db.set(`channel_${channelId}_jid`, channelJid)
+
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ✅ʟɪɴᴋᴇᴅ 〙═╗
+┃➠ ᴄʜᴀɴᴇʟ: ${channelId}
+┃➠ ᴊɪᴅ: ${channelJid}
+┃
+┃➠ ᴘᴏsᴛs ᴡɪʟ ɴᴏᴡ sᴇɴᴅ ᴛᴏ ᴡʜᴀᴛsᴀᴘ ᴄʜᴀɴɴᴇʟ
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
     // HELP
     return await sock.sendMessage(from, {
       text: `╔═〘 📢ᴄʜᴀɴᴇʟ 〙═╗
@@ -285,6 +325,7 @@ export default {
 ┃➠ ${prefix}channel info <id>
 ┃➠ ${prefix}channel delete <id>
 ┃➠ ${prefix}channel addadmin <id> @user
+┃➠ ${prefix}channel link <id> <jid>
 ┃
 ┃➠ ${prefix}post <id> <text>
 ╚═══════════════════╝`
