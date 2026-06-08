@@ -1,14 +1,17 @@
 /**
  * SwiftBot - plugins/commands/economy/shop.js
- * Group-Based Shop System with Items + Backgrounds
+ * Group-Based Shop System - Tools Only
  * Uses db keys: eco_${groupJid}_shop_items, eco_${groupJid}_inv_${user}_${item}
  */
+
+import sharp from 'sharp'
+import axios from 'axios'
 
 const formatCash = (num) => {
   return Number(num || 0).toLocaleString('en-US')
 }
 
-// DEFAULT SHOP ITEMS + 30 BACKGROUNDS
+// DEFAULT SHOP ITEMS - NO BACKGROUNDS
 const DEFAULT_ITEMS = {
   // TOOLS
   'pickaxe': {
@@ -70,247 +73,83 @@ const DEFAULT_ITEMS = {
     desc: 'Passive income +500/day',
     emoji: '🏠',
     category: 'property'
-  },
-
-  // BACKGROUNDS - 30 THEMES FOR PROFILE
-  'bg_cyber': {
-    name: 'Cyber Background',
-    price: 5000,
-    desc: 'Unlock cyber theme for profile',
-    emoji: '🎨',
-    category: 'backgrounds',
-    bgKey: 'cyber'
-  },
-  'bg_neon': {
-    name: 'Neon Background',
-    price: 5000,
-    desc: 'Unlock neon theme for profile',
-    emoji: '🎨',
-    category: 'backgrounds',
-    bgKey: 'neon'
-  },
-  'bg_sunset': {
-    name: 'Sunset Background',
-    price: 8000,
-    desc: 'Unlock sunset theme for profile',
-    emoji: '🌅',
-    category: 'backgrounds',
-    bgKey: 'sunset'
-  },
-  'bg_ocean': {
-    name: 'Ocean Background',
-    price: 8000,
-    desc: 'Unlock ocean theme for profile',
-    emoji: '🌊',
-    category: 'backgrounds',
-    bgKey: 'ocean'
-  },
-  'bg_forest': {
-    name: 'Forest Background',
-    price: 8000,
-    desc: 'Unlock forest theme for profile',
-    emoji: '🌲',
-    category: 'backgrounds',
-    bgKey: 'forest'
-  },
-  'bg_galaxy': {
-    name: 'Galaxy Background',
-    price: 15000,
-    desc: 'Unlock galaxy theme for profile',
-    emoji: '🌌',
-    category: 'backgrounds',
-    bgKey: 'galaxy'
-  },
-  'bg_fire': {
-    name: 'Fire Background',
-    price: 10000,
-    desc: 'Unlock fire theme for profile',
-    emoji: '🔥',
-    category: 'backgrounds',
-    bgKey: 'fire'
-  },
-  'bg_ice': {
-    name: 'Ice Background',
-    price: 10000,
-    desc: 'Unlock ice theme for profile',
-    emoji: '❄️',
-    category: 'backgrounds',
-    bgKey: 'ice'
-  },
-  'bg_gold': {
-    name: 'Gold Background',
-    price: 25000,
-    desc: 'Unlock gold luxury theme',
-    emoji: '👑',
-    category: 'backgrounds',
-    bgKey: 'gold'
-  },
-  'bg_silver': {
-    name: 'Silver Background',
-    price: 20000,
-    desc: 'Unlock silver metal theme',
-    emoji: '🥈',
-    category: 'backgrounds',
-    bgKey: 'silver'
-  },
-  'bg_purple': {
-    name: 'Purple Background',
-    price: 12000,
-    desc: 'Unlock royal purple theme',
-    emoji: '🟣',
-    category: 'backgrounds',
-    bgKey: 'purple'
-  },
-  'bg_red': {
-    name: 'Red Background',
-    price: 10000,
-    desc: 'Unlock blood red theme',
-    emoji: '🔴',
-    category: 'backgrounds',
-    bgKey: 'red'
-  },
-  'bg_blue': {
-    name: 'Blue Background',
-    price: 10000,
-    desc: 'Unlock deep blue theme',
-    emoji: '🔵',
-    category: 'backgrounds',
-    bgKey: 'blue'
-  },
-  'bg_green': {
-    name: 'Green Background',
-    price: 10000,
-    desc: 'Unlock nature green theme',
-    emoji: '🟢',
-    category: 'backgrounds',
-    bgKey: 'green'
-  },
-  'bg_pink': {
-    name: 'Pink Background',
-    price: 12000,
-    desc: 'Unlock cute pink theme',
-    emoji: '🩷',
-    category: 'backgrounds',
-    bgKey: 'pink'
-  },
-  'bg_orange': {
-    name: 'Orange Background',
-    price: 10000,
-    desc: 'Unlock warm orange theme',
-    emoji: '🟠',
-    category: 'backgrounds',
-    bgKey: 'orange'
-  },
-  'bg_teal': {
-    name: 'Teal Background',
-    price: 10000,
-    desc: 'Unlock calm teal theme',
-    emoji: '🩵',
-    category: 'backgrounds',
-    bgKey: 'teal'
-  },
-  'bg_void': {
-    name: 'Void Background',
-    price: 30000,
-    desc: 'Unlock pure black void theme',
-    emoji: '⚫',
-    category: 'backgrounds',
-    bgKey: 'void'
-  },
-  'bg_light': {
-    name: 'Light Background',
-    price: 15000,
-    desc: 'Unlock minimal light theme',
-    emoji: '⚪',
-    category: 'backgrounds',
-    bgKey: 'light'
-  },
-  'bg_rainbow': {
-    name: 'Rainbow Background',
-    price: 20000,
-    desc: 'Unlock colorful rainbow theme',
-    emoji: '🌈',
-    category: 'backgrounds',
-    bgKey: 'rainbow'
-  },
-  'bg_carbon': {
-    name: 'Carbon Background',
-    price: 18000,
-    desc: 'Unlock carbon fiber theme',
-    emoji: '⬛',
-    category: 'backgrounds',
-    bgKey: 'carbon'
-  },
-  'bg_diamond': {
-    name: 'Diamond Background',
-    price: 50000,
-    desc: 'Unlock premium diamond theme',
-    emoji: '💎',
-    category: 'backgrounds',
-    bgKey: 'diamond'
-  },
-  'bg_emerald': {
-    name: 'Emerald Background',
-    price: 40000,
-    desc: 'Unlock emerald jewel theme',
-    emoji: '💚',
-    category: 'backgrounds',
-    bgKey: 'emerald'
-  },
-  'bg_ruby': {
-    name: 'Ruby Background',
-    price: 40000,
-    desc: 'Unlock ruby stone theme',
-    emoji: '❤️',
-    category: 'backgrounds',
-    bgKey: 'ruby'
-  },
-  'bg_sapphire': {
-    name: 'Sapphire Background',
-    price: 40000,
-    desc: 'Unlock sapphire crystal theme',
-    emoji: '💙',
-    category: 'backgrounds',
-    bgKey: 'sapphire'
-  },
-  'bg_cosmic': {
-    name: 'Cosmic Background',
-    price: 35000,
-    desc: 'Unlock cosmic space theme',
-    emoji: '🌠',
-    category: 'backgrounds',
-    bgKey: 'cosmic'
-  },
-  'bg_toxic': {
-    name: 'Toxic Background',
-    price: 15000,
-    desc: 'Unlock toxic poison theme',
-    emoji: '☢️',
-    category: 'backgrounds',
-    bgKey: 'toxic'
-  },
-  'bg_vintage': {
-    name: 'Vintage Background',
-    price: 12000,
-    desc: 'Unlock retro vintage theme',
-    emoji: '📻',
-    category: 'backgrounds',
-    bgKey: 'vintage'
-  },
-  'bg_future': {
-    name: 'Future Background',
-    price: 30000,
-    desc: 'Unlock futuristic tech theme',
-    emoji: '🚀',
-    category: 'backgrounds',
-    bgKey: 'future'
   }
+}
+
+const generateShopBanner = async (sock, sender, groupName) => {
+  let pfpBuffer
+  try {
+    const pfpUrl = await sock.profilePictureUrl(sender, 'image')
+    const res = await axios.get(pfpUrl, { responseType: 'arraybuffer' })
+    pfpBuffer = Buffer.from(res.data)
+  } catch {
+    // fallback circle if no pfp
+    pfpBuffer = await sharp({
+      create: {
+        width: 120,
+        height: 120,
+        channels: 4,
+        background: { r: 100, g: 100, b: 255, alpha: 1 }
+      }
+    }).png().toBuffer()
+  }
+
+  const pfpCircle = await sharp(pfpBuffer)
+   .resize(120, 120)
+   .composite([{
+      input: Buffer.from(`<svg><circle cx="60" cy="60" r="60"/></svg>`),
+      blend: 'dest-in'
+    }])
+   .png()
+   .toBuffer()
+
+  const svg = `
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="400" fill="url(#bg)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="700" cy="100" r="80" fill="#0f3460" opacity="0.3"/>
+  <circle cx="100" cy="300" r="60" fill="#533483" opacity="0.3"/>
+
+  <!-- Title -->
+  <text x="400" y="80" font-family="Arial Black" font-size="48" fill="#fff" text-anchor="middle" filter="url(#shadow)">🛒 WELCOME TO THE SHOP</text>
+
+  <!-- Group name -->
+  <text x="400" y="120" font-family="Arial" font-size="24" fill="#a0a0ff" text-anchor="middle">${groupName}</text>
+
+  <!-- Line -->
+  <line x1="200" y1="150" x2="600" y2="150" stroke="#533483" stroke-width="3"/>
+
+  <!-- Bottom text -->
+  <text x="400" y="350" font-family="Arial" font-size="20" fill="#888" text-anchor="middle">Use ${prefix}shop buy &lt;item&gt; to purchase</text>
+</svg>`
+
+  const banner = await sharp(Buffer.from(svg))
+   .composite([{
+      input: pfpCircle,
+      top: 180,
+      left: 340
+    }])
+   .png()
+   .toBuffer()
+
+  return banner
 }
 
 export default {
   name: 'shop',
   alias: ['store', 'market', 'buy'],
-  desc: 'View shop or buy items and backgrounds',
+  desc: 'View shop or buy items',
   usage: '[buy] <item> [amount]',
   category: 'Economy',
   permission: 'all',
@@ -364,7 +203,6 @@ export default {
 ┃
 ┃➠ ᴜsᴀɢᴇ: ${prefix}shop buy <item>
 ┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}shop buy pickaxe
-┃➠ ᴇxᴀᴍᴘʟᴇ: ${prefix}shop buy bg_galaxy
 ╚═══════════════════╝`
         }, { quoted: m })
       }
@@ -414,27 +252,12 @@ export default {
 ┃➠ ʏᴏᴜ'ʀᴇ ɪɴ ᴊᴀɪʟ
 ┃
 ┃➠ ⏰ ʀᴇʟᴇᴀsᴇ ɪɴ: ${remaining}ᴍ
-┃➠ ɴᴏ sʜᴏᴘᴘɪɴɢ ɪɴ ᴊᴀɪʟ
+┃➠ ɴᴏ sʜᴏᴘɪɴɢ ɪɴ ᴊᴀɪʟ
 ╚═══════════════════╝`
         }, { quoted: m })
       }
 
-      // 7. CHECK IF ALREADY OWN BACKGROUND
-      if (item.bgKey) {
-        const ownedBg = await db.get(`eco_${groupId}_bg_${sender}`)
-        if (ownedBg === item.bgKey) {
-          return await sock.sendMessage(from, {
-            text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ᴀʟʀᴇᴀᴅʏ ᴏᴡɴᴇᴅ
-┃
-┃➠ ʙᴀᴄᴋɢʀᴏᴜɴᴅ: ${item.name}
-┃➠ ᴜsᴇ ${prefix}profile ᴛᴏ ᴠɪᴇᴡ
-╚═══════════════════╝`
-          }, { quoted: m })
-        }
-      }
-
-      // 8. CHECK IF ENOUGH MONEY
+      // 7. CHECK IF ENOUGH MONEY
       if (currentBalance < totalCost) {
         return await sock.sendMessage(from, {
           text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
@@ -449,7 +272,7 @@ export default {
         }, { quoted: m })
       }
 
-      // 9. PROCESS PURCHASE
+      // 8. PROCESS PURCHASE
       const newBalance = currentBalance - totalCost
       const newInv = currentInv + amount
 
@@ -457,29 +280,6 @@ export default {
         db.set(balanceKey, newBalance),
         db.set(invKey, newInv)
       ])
-
-      // 10. IF BACKGROUND, AUTO-APPLY
-      if (item.bgKey) {
-        await db.set(`eco_${groupId}_bg_${sender}`, item.bgKey)
-        return await sock.sendMessage(from, {
-          text: `╔═〘 ✅ᴜɴʟᴏᴄᴋᴇᴅ 〙═╗
-┃➠ ᴛʀᴀɴsᴀᴄᴛɪᴏɴ sᴜᴄᴄᴇss
-┃➠ ɢʀᴏᴜᴘ: ${groupName}
-┃
-┃➠ ${item.emoji} ʙᴀᴄᴋɢʀᴏᴜɴᴅ: ${item.name}
-┃➠ 💰 ᴘᴀɪᴅ: ${currency}${formatCash(totalCost)}
-┃➠ 💰 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ${currency}${formatCash(newBalance)}
-┃
-┃➠ ✅ ᴀᴜᴛᴏ-ᴀᴘᴘʟɪᴇᴅ ᴛᴏ ᴘʀᴏғɪʟᴇ
-┃➠ 📝 ${item.desc}
-╚═══════════════════╝
-
-╭━━━━❮ ᴛɪᴘs ❯━⊷
-┃➠ ${prefix}profile - View new theme
-┃➠ ${prefix}inv - Check inventory
-╰━━━━━━━━━━━━━━━━━⊷`
-        }, { quoted: m })
-      }
 
       return await sock.sendMessage(from, {
         text: `╔═〘 ✅ᴘᴜʀᴄʜᴀsᴇᴅ 〙═╗
@@ -503,7 +303,14 @@ export default {
       }, { quoted: m })
     }
 
-    // 10. SHOP DISPLAY MODE - GROUPED BY CATEGORY
+    // 9. SHOP DISPLAY MODE - GENERATE SVG BANNER
+    let bannerImage
+    try {
+      bannerImage = await generateShopBanner(sock, sender, groupName)
+    } catch (e) {
+      console.error('Shop banner error:', e)
+    }
+
     let shopText = `╔═〘 🛒sʜᴏᴘ 〙═╗
 ┃➠ ɢʀᴏᴜᴘ: ${groupName}
 ┃
@@ -516,7 +323,7 @@ export default {
       categories[cat].push({ key,...item })
     })
 
-    const catOrder = ['tools', 'weapons', 'defense', 'luxury', 'property', 'backgrounds']
+    const catOrder = ['tools', 'weapons', 'defense', 'luxury', 'property']
     catOrder.forEach(cat => {
       if (categories[cat]) {
         const catName = cat.toUpperCase()
@@ -534,12 +341,18 @@ export default {
 ╭━━━━❮ ʜᴏᴡ ᴛᴏ ʙᴜʏ ❯━⊷
 ┃➠ ${prefix}shop buy <item>
 ┃➠ ${prefix}shop buy pickaxe
-┃➠ ${prefix}shop buy bg_galaxy
+┃➠ ${prefix}shop buy sword 2
 ┃
 ┃➠ ${prefix}inv - Your items
-┃➠ ${prefix}profile - View theme
 ╰━━━━━━━━━━━━━━━━━⊷`
 
-    await sock.sendMessage(from, { text: shopText }, { quoted: m })
+    if (bannerImage) {
+      await sock.sendMessage(from, {
+        image: bannerImage,
+        caption: shopText
+      }, { quoted: m })
+    } else {
+      await sock.sendMessage(from, { text: shopText }, { quoted: m })
+    }
   }
 }
