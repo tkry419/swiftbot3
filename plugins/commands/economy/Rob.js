@@ -23,9 +23,9 @@ const formatTime = (ms) => {
   return `${hours}h ${minutes}m`
 }
 
-// WORKING IMAGE URLS FROM YOUR LIST
-const SUCCESS_IMG_URL = 'https://i.ibb.co/qYq2nJgM/images-2.jpg' // steal_success
-const JAIL_IMG_URL = 'https://i.ibb.co/pBdkbvrq/sddefault.jpg' // jail_caught
+// LOAD FROM ASSETS FOLDER - matches assets.js overlays
+const SUCCESS_IMG_PATH = path.join(ASSETS_DIR, 'steal_success.png')
+const JAIL_IMG_PATH = path.join(ASSETS_DIR, 'jail_caught.png')
 
 const getUserPfp = async (sock, jid) => {
   try {
@@ -64,38 +64,32 @@ const generateRobImage = async (sock, sender, target, type, amount = 0, fine = 0
    .composite([{ input: Buffer.from(`<svg><circle cx="50" cy="50" r="50"/></svg>`), blend: 'dest-in' }])
    .png().toBuffer()
 
-  let bgColor, title, mainText, bgImageUrl = null
+  let bgColor, title, mainText, overlayPath = null
   if (type === 'success') {
     bgColor = '#0a4d0a'
     title = 'ROB SUCCESS'
     mainText = `STOLE $${formatCash(amount)}`
-    bgImageUrl = SUCCESS_IMG_URL // Use your ibb.co image
+    overlayPath = SUCCESS_IMG_PATH
   } else if (type === 'fail') {
     bgColor = '#4d0a0a'
     title = 'CAUGHT'
     mainText = `JAIL ${jailHours}H | FINE $${formatCash(fine)}`
-    bgImageUrl = JAIL_IMG_URL // Use your ibb.co image
+    overlayPath = JAIL_IMG_PATH
   } else {
     bgColor = '#1a1a1a'
     title = 'IN JAIL'
     mainText = `RELEASE IN ${jailHours}M`
-    // Use local jail_bars.png if exists
     const jailBarsPath = path.join(ASSETS_DIR, 'jail_bars.png')
     if (fs.existsSync(jailBarsPath)) {
-      bgImageUrl = jailBarsPath
+      overlayPath = jailBarsPath
     }
   }
 
-  // Download background image if URL
+  // Load overlay from assets folder
   let bgBuffer = null
-  if (bgImageUrl) {
+  if (overlayPath && fs.existsSync(overlayPath)) {
     try {
-      if (bgImageUrl.startsWith('http')) {
-        const res = await axios.get(bgImageUrl, { responseType: 'arraybuffer', timeout: 10000 })
-        bgBuffer = await sharp(Buffer.from(res.data)).resize(800, 400, { fit: 'cover' }).png().toBuffer()
-      } else if (fs.existsSync(bgImageUrl)) {
-        bgBuffer = await sharp(bgImageUrl).resize(800, 400, { fit: 'cover' }).png().toBuffer()
-      }
+      bgBuffer = await sharp(overlayPath).resize(800, 400, { fit: 'cover' }).png().toBuffer()
     } catch (e) {
       console.error('BG image load failed:', e.message)
     }
