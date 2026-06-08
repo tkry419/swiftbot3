@@ -5,6 +5,15 @@
  * Uses db keys: eco_${groupJid}_balance_${user}, eco_${groupJid}_bank_${user}
  */
 
+import sharp from 'sharp'
+import axios from 'axios'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ASSETS_DIR = path.join(__dirname, 'assets')
+
 const formatCash = (num) => {
   return Number(num || 0).toLocaleString('en-US')
 }
@@ -31,6 +40,109 @@ const BANK_UPGRADES = [
 const getBankLimit = (upgradeLevel) => {
   const upgrade = BANK_UPGRADES[upgradeLevel] || BANK_UPGRADES[0]
   return upgrade.limit
+}
+
+const escapeXml = (str) => {
+  return String(str)
+.replace(/&/g, '&amp;')
+.replace(/</g, '&lt;')
+.replace(/>/g, '&gt;')
+.replace(/"/g, '&quot;')
+.replace(/'/g, '&apos;')
+}
+
+const getUserPfp = async (sock, jid) => {
+  try {
+    const pfpUrl = await sock.profilePictureUrl(jid, 'image')
+    const res = await axios.get(pfpUrl, { responseType: 'arraybuffer', timeout: 5000 })
+    return Buffer.from(res.data)
+  } catch {
+    return await sharp({
+      create: { width: 120, height: 120, channels: 4, background: { r: 50, g: 100, b: 200, alpha: 1 } }
+    }).png().toBuffer()
+  }
+}
+
+const generateBankCard = async (sock, userJid, data, bgKey = 'default') => {
+  const pfpBuffer = await getUserPfp(sock, userJid)
+  const pfpCircle = await sharp(pfpBuffer)
+ .resize(120, 120)
+ .composite([{ input: Buffer.from(`<svg><circle cx="60" cy="60" r="60"/></svg>`), blend: 'dest-in' }])
+ .png().toBuffer()
+
+  // Load background
+  let bgBuffer = null
+  const bgPath = path.join(ASSETS_DIR, `${bgKey}.png`)
+  const bgFramePath = path.join(ASSETS_DIR, `${bgKey}_frame.png`)
+
+  if (fs.existsSync(bgFramePath)) {
+    bgBuffer = await sharp(bgFramePath).resize(800, 500, { fit: 'cover' }).png().toBuffer()
+  } else if (fs.existsSync(bgPath)) {
+    bgBuffer = await sharp(bgPath).resize(800, 500, { fit: 'cover' }).png().toBuffer()
+  }
+
+  const glow = data.tierColor || '#00E676'
+  const svg = `
+<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="overlay" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#000;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#000;stop-opacity:0.8" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="800" height="500" fill="url(#overlay)"/>
+
+  <!-- Title -->
+  <text x="400" y="60" font-family="Arial Black" font-size="42" fill="#fff" text-anchor="middle" filter="url(#glow)">💳 BANK CARD</text>
+
+  <!-- Name -->
+  <text x="280" y="180" font-family="Arial Black" font-size="28" fill="#fff">${escapeXml(data.name)}</text>
+  <text x="280" y="210" font-family="Arial" font-size="18" fill="${glow}">LV ${data.level} • ${data.job}</text>
+
+  <!-- Cash -->
+  <rect x="50" y="250" width="330" height="90" rx="15" fill="#1e1e2e" stroke="${glow}" stroke-width="2" opacity="0.9"/>
+  <text x="70" y="280" font-family="Arial" font-size="16" fill="#888">CASH</text>
+  <text x="70" y="315" font-family="Arial Black" font-size="28" fill="#fff">💰 ${data.currency}${formatCash(data.cash)}</text>
+
+  <!-- Bank -->
+  <rect x="420" y="250" width="330" height="90" rx="15" fill="#1e1e2e" stroke="${glow}" stroke-width="2" opacity="0.9"/>
+  <text x="440" y="280" font-family="Arial" font-size="16" fill="#888">BANK • ${data.tierName}</text>
+  <text x="440" y="315" font-family="Arial Black" font-size="24" fill="#fff">🏦 ${data.currency}${formatCash(data.bank)}</text>
+  <text x="720" y="315" font-family="Arial" font-size="14" fill="#666" text-anchor="end">/${formatCash(data.bankLimit)}</text>
+
+  <!-- Net Worth -->
+  <rect x="50" y="360" width="700" height="60" rx="15" fill="${glow}" opacity="0.2"/>
+  <text x="400" y="395" font-family="Arial Black" font-size="24" fill="${glow}" text-anchor="middle">💎 NET WORTH: ${data.currency}${formatCash(data.netWorth)}</text>
+
+  <!-- XP Bar -->
+  <rect x="50" y="440" width="700" height="30" rx="15" fill="#1e1e2e"/>
+  <rect x="50" y="440" width="${(data.xpProgress / data.xpRequired) * 700}" height="30" rx="15" fill="${glow}" opacity="0.8"/>
+  <text x="400" y="460" font-family="Arial" font-size="14" fill="#fff" text-anchor="middle">XP: ${formatCash(data.xpProgress)}/${formatCash(data.xpRequired)}</text>
+</svg>`
+
+  let composite = [
+    { input: Buffer.from(svg), top: 0, left: 0 },
+    { input: pfpCircle, top: 130, left: 130 }
+  ]
+
+  if (bgBuffer) {
+    composite.unshift({ input: bgBuffer, top: 0, left: 0 })
+  }
+
+  return await sharp({
+    create: { width: 800, height: 500, channels: 4, background: '#0f0f1e' }
+  })
+.composite(composite)
+.png()
+.toBuffer()
 }
 
 export default {
@@ -158,6 +270,7 @@ export default {
     const streakKey = `eco_${groupId}_streak_${target}`
     const jailKey = `eco_${groupId}_jail_${target}`
     const bankUpgradeKey = `eco_${groupId}_bank_level_${target}`
+    const bgKey = `eco_${groupId}_bg_${target}`
 
     // 5. FETCH ALL DATA FROM DB
     const [
@@ -169,7 +282,8 @@ export default {
       jailTime,
       bankLevel,
       currency,
-      startBonus
+      startBonus,
+      bgTheme
     ] = await Promise.all([
       db.get(balanceKey),
       db.get(bankKey),
@@ -179,7 +293,8 @@ export default {
       db.get(jailKey),
       db.get(bankUpgradeKey),
       db.getGroupKey(groupId, 'eco_currency'),
-      db.getGroupKey(groupId, 'eco_startbonus')
+      db.getGroupKey(groupId, 'eco_startbonus'),
+      db.get(bgKey)
     ])
 
     // 6. INITIALIZE NEW USER WITH START BONUS
@@ -229,9 +344,59 @@ export default {
       }
     }
 
-    // 10. SEND BALANCE BOX - WITH BANK TIER
-    await sock.sendMessage(from, {
-      text: `╔═〘 💳ᴇᴄᴏɴᴏᴍʏ 〙═╗
+    // 10. GENERATE BANK CARD IMAGE WITH BACKGROUND
+    try {
+      const cardData = {
+        name: targetName === 'You'? 'You' : targetName.replace('@', ''),
+        level: level,
+        job: job || 'Unemployed',
+        currency: currencySymbol,
+        cash: currentCash || 0,
+        bank: currentBank || 0,
+        bankLimit: bankLimit,
+        tierName: BANK_UPGRADES[currentBankLevel].name,
+        tierColor: '#00E676',
+        netWorth: netWorth,
+        xpProgress: xpProgress,
+        xpRequired: xpRequired
+      }
+
+      const cardImage = await generateBankCard(sock, target, cardData, bgTheme || 'default')
+
+      const textMsg = `╔═〘 💳ᴇᴄᴏɴᴏᴍʏ 〙═╗
+┃➠ ᴜsᴇʀ : ${targetName}
+┃➠ ɢʀᴏᴜᴘ : ${groupName}
+${jailStatus}┃
+┃➠ 💰 ᴄᴀsʜ : ${currencySymbol}${formatCash(currentCash)}
+┃➠ 🏦 ʙᴀɴᴋ : ${currencySymbol}${formatCash(currentBank)} / ${currencySymbol}${formatCash(bankLimit)}
+┃➠ 🔒 ᴛɪᴇʀ : ${BANK_UPGRADES[currentBankLevel].name} LV${currentBankLevel}
+┃➠ 💎 ɴᴇᴛ ᴡᴏʀᴛʜ : ${currencySymbol}${formatCash(netWorth)}
+┃
+┃➠ 📈 ʟᴇᴠᴇʟ : ${level}
+┃➠ ⭐ xᴘ : ${formatCash(xpProgress)}/${formatCash(xpRequired)}
+┃➠ 🔥 sᴛʀᴇᴀᴋ : ${streak || 0} ᴅᴀʏs
+┃➠ 💼 ᴊᴏʙ : ${job || 'Unemployed'}
+╚═══════════════════╝
+
+╭━━━━❮ ᴄᴏᴍᴍᴀɴᴅs ❯━⊷
+┃➠ ${prefix}daily - Claim daily reward
+┃➠ ${prefix}work - Earn money
+┃➠ ${prefix}deposit <amount> - Bank cash
+┃➠ ${prefix}withdraw <amount> - Get cash
+┃➠ ${prefix}bank upgrade - Increase limit
+┃➠ ${prefix}pay @user <amount> - Send money
+╰━━━━━━━━━━━━━━━━━⊷`
+
+      await sock.sendMessage(from, {
+        image: cardImage,
+        caption: textMsg,
+        mentions: target!== sender? [target] : []
+      }, { quoted: m })
+
+    } catch (e) {
+      // Fallback to text if image fails - YOUR ORIGINAL TEXT
+      await sock.sendMessage(from, {
+        text: `╔═〘 💳ᴇᴄᴏɴᴏᴍʏ 〙═╗
 ┃➠ ᴜsᴇʀ : ${targetName}
 ┃➠ ɢʀᴏᴜᴘ : ${groupName}
 ${jailStatus}┃
@@ -254,7 +419,8 @@ ${jailStatus}┃
 ┃➠ ${prefix}bank upgrade - Increase limit
 ┃➠ ${prefix}pay @user <amount> - Send money
 ╰━━━━━━━━━━━━━━━━━⊷`,
-      mentions: target!== sender? [target] : []
-    }, { quoted: m })
+        mentions: target!== sender? [target] : []
+      }, { quoted: m })
+    }
   }
 }
