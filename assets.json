@@ -1,0 +1,234 @@
+{
+  "version": 2,
+  "backgrounds": [
+    {
+      "id": "cyber",
+      "name": "Cyber",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/8107950/pexels-photo-8107950.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 5000,
+      "glow": "#9600ff",
+      "tier": "common"
+    },
+    {
+      "id": "fire",
+      "name": "Fire",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/8738463/pexels-photo-8738463.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 10000,
+      "glow": "#ff3200",
+      "tier": "rare"
+    },
+    {
+      "id": "water",
+      "name": "Water",
+      "type": "animated",
+      "url": "https://images.pexels.com/photos/36617519/pexels-photo-36617519.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": "https://www.pexels.com/download/video/8249130/",
+      "price": 80000,
+      "glow": "#00b4ff",
+      "tier": "epic"
+    },
+    {
+      "id": "hacker",
+      "name": "Hacker",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/14066351/pexels-photo-14066351.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 0,
+      "glow": "#00ff00",
+      "tier": "common"
+    },
+    {
+      "id": "robot",
+      "name": "Robot",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/8294657/pexels-photo-8294657.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 15000,
+      "glow": "#0099ff",
+      "tier": "rare"
+    },
+    {
+      "id": "matrix",
+      "name": "Matrix",
+      "type": "animated",
+      "url": "https://images.pexels.com/photos/1089438/pexels-photo-1089438.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": "https://videos.pexels.com/video-files/3129671/3129671-hd_1920_1080_30fps.mp4",
+      "price": 120000,
+      "glow": "#00ff00",
+      "tier": "legendary"
+    },
+    {
+      "id": "blue",
+      "name": "Blue",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/9834376/pexels-photo-9834376.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 10000,
+      "glow": "#0064ff",
+      "tier": "common"
+    },
+    {
+      "id": "yellow",
+      "name": "Yellow",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/14536018/pexels-photo-14536018.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 10000,
+      "glow": "#ffff00",
+      "tier": "common"
+    },
+    {
+      "id": "green",
+      "name": "Green",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/16723235/pexels-photo-16723235.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 10000,
+      "glow": "#00ff00",
+      "tier": "common"
+    },
+    {
+      "id": "red",
+      "name": "Red",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/15639401/pexels-photo-15639401.png?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 10000,
+      "glow": "#ff0000",
+      "tier": "common"
+    },
+    {
+      "id": "pink",
+      "name": "Pink",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/220072/pexels-photo-220072.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 12000,
+      "glow": "#ff00ff",
+      "tier": "rare"
+    },
+    {
+      "id": "purple",
+      "name": "Purple",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/7233360/pexels-photo-7233360.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 12000,
+      "glow": "#c800ff",
+      "tier": "rare"
+    },
+    {
+      "id": "default",
+      "name": "Default",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/3381223/pexels-photo-3381223.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 0,
+      "glow": "#ffffff",
+      "tier": "common"
+    },
+    {
+      "id": "girl",
+      "name": "Girl",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/5524805/pexels-photo-5524805.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 25000,
+      "glow": "#ff69b4",
+      "tier": "epic"
+    },
+    {
+      "id": "rainbow",
+      "name": "Rainbow",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/6985119/pexels-photo-6985119.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 20000,
+      "glow": "#ff00ff",
+      "tier": "epic"
+    },
+    {
+      "id": "nebula",
+      "name": "Nebula",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/6138036/pexels-photo-6138036.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 30000,
+      "glow": "#aa00ff",
+      "tier": "epic"
+    },
+    {
+      "id": "space",
+      "name": "Space",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/37269546/pexels-photo-37269546.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 35000,
+      "glow": "#aa00ff",
+      "tier": "epic"
+    },
+    {
+      "id": "lightyear",
+      "name": "Light Year",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/3607542/pexels-photo-3607542.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 40000,
+      "glow": "#00c8ff",
+      "tier": "legendary"
+    },
+    {
+      "id": "ice",
+      "name": "Ice",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/866351/pexels-photo-866351.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 10000,
+      "glow": "#00d4ff",
+      "tier": "rare"
+    },
+    {
+      "id": "gold",
+      "name": "Gold",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/122458/pexels-photo-122458.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 25000,
+      "glow": "#ffd700",
+      "tier": "epic"
+    },
+    {
+      "id": "diamond",
+      "name": "Diamond",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/5442447/pexels-photo-5442447.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 50000,
+      "glow": "#b4ffff",
+      "tier": "legendary"
+    },
+    {
+      "id": "nightcity",
+      "name": "Night City",
+      "type": "static",
+      "url": "https://images.pexels.com/photos/19032688/pexels-photo-19032688.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630",
+      "videoUrl": null,
+      "price": 18000,
+      "glow": "#ff0066",
+      "tier": "rare"
+    }
+  ],
+  "overlays": {
+    "jail_bars": "https://i.imgur.com/8Qz8pYh.png",
+    "wanted_frame": "https://i.imgur.com/Xh3mK2k.png",
+    "mugshot_lines": "https://i.imgur.com/5XvQqzN.png",
+    "blood_splatter": "https://i.imgur.com/qXjRzWk.png",
+    "explosion": "https://i.imgur.com/KnLzP2m.png",
+    "steal_success": "https://i.ibb.co/qYq2nJgM/images-2.jpg",
+    "jail_caught": "https://i.ibb.co/pBdkbvrq/sddefault.jpg"
+  }
+}
