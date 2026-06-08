@@ -1,7 +1,7 @@
 /**
  * SwiftBot - plugins/observers/welcome/welcome.js
  * Auto welcome/goodbye messages — Per-group settings
- * Real-time, no restart needed
+ * Real-time, no restart neede
  */
 
 export default {
