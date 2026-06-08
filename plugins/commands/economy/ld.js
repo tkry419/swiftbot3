@@ -1,12 +1,18 @@
 /**
  * SwiftBot - plugins/commands/economy/leaderboard.js
- * Group-Based SVG Leaderboard with Profile Pictures - Using SHARP
- * Fixed: Shows proper names instead of LID
+ * Group-Based SVG Leaderboard with Backgrounds + Profile Pictures
+ * Uses db keys: eco_${groupJid}_balance_${user}, eco_${groupJid}_bank_${user}
  */
 
 import sharp from 'sharp'
 import Jimp from 'jimp'
 import axios from 'axios'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ASSETS_DIR = path.join(__dirname, 'assets')
 
 const formatCash = (num) => {
   if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B'
@@ -22,11 +28,11 @@ const getGlowColor = (rank) => {
 
 const escapeXml = (str) => {
   return String(str)
-   .replace(/&/g, '&amp;')
-   .replace(/</g, '&lt;')
-   .replace(/>/g, '&gt;')
-   .replace(/"/g, '&quot;')
-   .replace(/'/g, '&apos;')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&apos;')
 }
 
 const downloadAndRoundPfp = async (url) => {
@@ -46,17 +52,28 @@ const downloadAndRoundPfp = async (url) => {
   }
 }
 
-const generateLeaderboardSVG = (users, groupName, currency) => {
+const generateLeaderboardSVG = async (users, groupName, currency, bgKey = 'default') => {
   const width = 800
   const height = 600
   const topUsers = users.slice(0, 5)
+
+  // Load background if exists
+  let bgBuffer = null
+  const bgPath = path.join(ASSETS_DIR, `${bgKey}.png`)
+  const bgFramePath = path.join(ASSETS_DIR, `${bgKey}_frame.png`)
+
+  if (fs.existsSync(bgFramePath)) {
+    bgBuffer = await sharp(bgFramePath).resize(width, height, { fit: 'cover' }).png().toBuffer()
+  } else if (fs.existsSync(bgPath)) {
+    bgBuffer = await sharp(bgPath).resize(width, height, { fit: 'cover' }).png().toBuffer()
+  }
 
   let svgContent = `
 <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <radialGradient id="bgGlow" cx="50%" cy="30%" r="70%">
-      <stop offset="0%" stop-color="#1a1a2e" />
-      <stop offset="100%" stop-color="#0f0f1e" />
+      <stop offset="0%" stop-color="#1a1a2e" stop-opacity="0.7" />
+      <stop offset="100%" stop-color="#0f0f1e" stop-opacity="0.9" />
     </radialGradient>
     <filter id="glow">
       <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
@@ -81,7 +98,7 @@ const generateLeaderboardSVG = (users, groupName, currency) => {
     const y = 140 + index * 90
     const glowColor = getGlowColor(index)
     const medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][index]
-    const displayName = escapeXml(user.name.slice(0, 20))
+    const displayName = escapeXml(user.displayName.slice(0, 20))
 
     svgContent += `
   <rect x="50" y="${y}" width="700" height="75" rx="15" fill="#1e1e2e" stroke="${glowColor}" stroke-width="2" opacity="0.95" filter="url(#shadow)"/>
@@ -100,7 +117,15 @@ const generateLeaderboardSVG = (users, groupName, currency) => {
   <text x="400" y="580" font-family="Arial" font-size="12" fill="#555" text-anchor="middle">Swift Tech Economy System</text>
 </svg>`
 
-  return svgContent
+  // If background exists, composite it first
+  if (bgBuffer) {
+    return await sharp(bgBuffer)
+     .composite([{ input: Buffer.from(svgContent), top: 0, left: 0 }])
+     .png()
+     .toBuffer()
+  } else {
+    return await sharp(Buffer.from(svgContent)).png().toBuffer()
+  }
 }
 
 export default {
@@ -156,10 +181,8 @@ export default {
     }
 
     // 3. FETCH ALL BALANCES & BANK - FIXED NAME RESOLUTION
-    const userPromises = participants.map(async (p) => {
+    const userPromises = participants.map(async (p, idx) => {
       const userJid = p.id
-      const lid = p.lid || userJid // Use LID if available, fallback to JID
-
       const [balance, bank, pushname] = await Promise.all([
         db.get(`eco_${groupId}_balance_${userJid}`),
         db.get(`eco_${groupId}_bank_${userJid}`),
@@ -168,29 +191,22 @@ export default {
 
       const total = (balance || 0) + (bank || 0)
 
-      // Name resolution priority: DB pushname > contact notify/name > number from JID
+      // Name resolution: DB pushname > contact notify/name > User + number
       let displayName = pushname || p.notify || p.name
       if (!displayName) {
-        // Extract number from JID or LID
-        const num = userJid.includes('@')? userJid.split('@')[0] : userJid
-        displayName = num.replace(/\D/g, '').slice(-10) || 'Unknown'
+        // Use index + 1 as fallback, NEVER show JID/LID
+        displayName = `User ${idx + 1}`
       }
 
-      // Get profile picture - try JID first, then LID
+      // Get profile picture
       let pfp = 'https://i.imgur.com/2wOJD6K.png'
       try {
         pfp = await sock.profilePictureUrl(userJid, 'image')
-      } catch {
-        try {
-          if (lid && lid!== userJid) {
-            pfp = await sock.profilePictureUrl(lid, 'image')
-          }
-        } catch {}
-      }
+      } catch {}
 
       return {
         jid: userJid,
-        name: displayName,
+        displayName: displayName,
         balance: balance || 0,
         bank: bank || 0,
         total,
@@ -202,8 +218,8 @@ export default {
 
     // 4. SORT BY TOTAL WEALTH
     const sortedUsers = allUsers
-     .filter(u => u.total > 0)
-     .sort((a, b) => b.total - a.total)
+    .filter(u => u.total > 0)
+    .sort((a, b) => b.total - a.total)
 
     if (sortedUsers.length === 0) {
       return await sock.sendMessage(from, {
@@ -216,12 +232,13 @@ export default {
       }, { quoted: m })
     }
 
-    // 5. GENERATE BASE SVG
-    const top5 = sortedUsers.slice(0, 5)
-    const svg = generateLeaderboardSVG(top5, groupName, currency)
+    // 5. GET BACKGROUND - USE #1 USER'S BACKGROUND OR DEFAULT
+    const topUser = sortedUsers[0]
+    const topUserBg = await db.get(`eco_${groupId}_bg_${topUser.jid}`) || 'default'
 
-    // 6. CONVERT SVG TO PNG USING SHARP
-    let buffer = await sharp(Buffer.from(svg)).png().toBuffer()
+    // 6. GENERATE BASE SVG WITH BACKGROUND
+    const top5 = sortedUsers.slice(0, 5)
+    let buffer = await generateLeaderboardSVG(top5, groupName, currency, topUserBg)
 
     // 7. OVERLAY PROFILE PICTURES USING SHARP COMPOSITE
     const compositeOps = []
@@ -240,12 +257,12 @@ export default {
 
     if (compositeOps.length > 0) {
       buffer = await sharp(buffer)
-       .composite(compositeOps)
-       .png()
-       .toBuffer()
+      .composite(compositeOps)
+      .png()
+      .toBuffer()
     }
 
-    // 8. SEND IMAGE + TEXT
+    // 8. SEND IMAGE + TEXT - NO JIDS IN TEXT
     let textLB = `╔═〘 🏆ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ 〙═╗
 ┃➠ ɢʀᴏᴜᴘ: ${groupName}
 ┃
@@ -253,7 +270,7 @@ export default {
 
     top5.forEach((user, i) => {
       const medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i]
-      const name = user.name.length > 15? user.name.slice(0, 15) + '...' : user.name
+      const name = user.displayName.length > 15? user.displayName.slice(0, 15) + '...' : user.displayName
       textLB += `┃➠ ${medal} ${name}\n┃➠ 💰 ${currency}${formatCash(user.total)}\n┃\n`
     })
 
@@ -261,8 +278,8 @@ export default {
 
     await sock.sendMessage(from, {
       image: buffer,
-      caption: textLB,
-      mentions: top5.map(u => u.jid)
+      caption: textLB
+      // Removed mentions array to avoid exposing JIDs
     }, { quoted: m })
   }
 }
