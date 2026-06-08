@@ -4,6 +4,15 @@
  * Uses db keys: eco_${groupJid}_balance_${user}, eco_${groupJid}_jail_${user}
  */
 
+import sharp from 'sharp'
+import axios from 'axios'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ASSETS_DIR = path.join(__dirname, 'assets')
+
 const formatCash = (num) => {
   return Number(num || 0).toLocaleString('en-US')
 }
@@ -14,6 +23,10 @@ const formatTime = (ms) => {
   if (hours > 0) return `${hours}h ${minutes}m`
   return `${minutes}m`
 }
+
+// LOAD FROM ASSETS FOLDER - matches assets.js overlays
+const SUCCESS_IMG_PATH = path.join(ASSETS_DIR, 'steal_success.png')
+const JAIL_IMG_PATH = path.join(ASSETS_DIR, 'jail_caught.png')
 
 // CRIME SCENARIOS - 40% success rate
 const CRIMES = [
@@ -68,6 +81,92 @@ const CRIMES = [
     fail: ['Casino guards had guns', 'Silent alarm called SWAT', 'Vault was time-locked']
   }
 ]
+
+const getUserPfp = async (sock, jid) => {
+  try {
+    const pfpUrl = await sock.profilePictureUrl(jid, 'image')
+    const res = await axios.get(pfpUrl, { responseType: 'arraybuffer', timeout: 5000 })
+    return Buffer.from(res.data)
+  } catch {
+    return await sharp({
+      create: { width: 100, height: 100, channels: 4, background: { r: 100, g: 50, b: 200, alpha: 1 } }
+    }).png().toBuffer()
+  }
+}
+
+const generateCrimeImage = async (sock, sender, type, amount = 0, fine = 0, jailHours = 0, crimeName = '') => {
+  const pfpBuffer = await getUserPfp(sock, sender)
+  const pfpCircle = await sharp(pfpBuffer)
+  .resize(100, 100)
+  .composite([{ input: Buffer.from(`<svg><circle cx="50" cy="50" r="50"/></svg>`), blend: 'dest-in' }])
+  .png().toBuffer()
+
+  let bgColor, title, mainText
+  if (type === 'success') {
+    bgColor = '#0a4d0a'
+    title = 'CRIME SUCCESS'
+    mainText = `STOLE $${formatCash(amount)}`
+  } else {
+    bgColor = '#4d0a0a'
+    title = 'BUSTED'
+    mainText = `JAIL ${jailHours}H | FINE $${formatCash(fine)}`
+  }
+
+  // Load background from assets folder
+  let bgBuffer = null
+  const overlayPath = type === 'success' ? SUCCESS_IMG_PATH : JAIL_IMG_PATH
+  if (fs.existsSync(overlayPath)) {
+    try {
+      bgBuffer = await sharp(overlayPath).resize(800, 400, { fit: 'cover' }).png().toBuffer()
+    } catch (e) {
+      console.error('BG image load failed:', e.message)
+    }
+  }
+
+  const svg = `
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:${bgColor};stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#000;stop-opacity:0.95" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="800" height="400" fill="url(#bg)"/>
+
+  <!-- Title -->
+  <text x="400" y="60" font-family="Arial Black" font-size="42" fill="#fff" text-anchor="middle" filter="url(#glow)">${title}</text>
+
+  <!-- Crime Name -->
+  <text x="400" y="95" font-family="Arial" font-size="20" fill="#ffcc00" text-anchor="middle">${crimeName}</text>
+
+  <!-- Main Text -->
+  <text x="400" y="320" font-family="Arial Black" font-size="32" fill="#ffcc00" text-anchor="middle">${mainText}</text>
+</svg>`
+
+  const composite = [
+    { input: Buffer.from(svg), top: 0, left: 0 },
+    { input: pfpCircle, top: 150, left: 350 }
+  ]
+
+  if (bgBuffer) {
+    composite.unshift({ input: bgBuffer, top: 0, left: 0 })
+  }
+
+  return await sharp({
+    create: { width: 800, height: 400, channels: 4, background: bgColor }
+  })
+ .composite(composite)
+ .png()
+ .toBuffer()
+}
 
 export default {
   name: 'crime',
@@ -178,8 +277,11 @@ export default {
         db.set(crimeCountKey, newCrimeCount)
       ])
 
-      await sock.sendMessage(from, {
-        text: `╔═〘 ${crime.emoji}ᴄʀɪᴍᴇ sᴜᴄᴄᴇss 〙═╗
+      try {
+        const successImg = await generateCrimeImage(sock, sender, 'success', earned, 0, 0, crime.name)
+        await sock.sendMessage(from, {
+          image: successImg,
+          caption: `╔═〘 ${crime.emoji}ᴄʀɪᴍᴇ sᴜᴄᴄᴇss 〙═╗
 ┃➠ ᴄʀɪᴍᴇ: ${crime.name}
 ┃➠ ɢʀᴏᴜᴘ: ${groupName}
 ┃
@@ -195,7 +297,27 @@ export default {
 ┃➠ 40% sᴜᴄᴇss ʀᴀᴛᴇ
 ┃➠ ʜɪɢʜ ʀɪsᴋ ʜɪɢʜ ʀᴇᴡᴀʀᴅ
 ╰━━━━━━━━━━━━━━━━━⊷`
-      }, { quoted: m })
+        }, { quoted: m })
+      } catch (e) {
+        await sock.sendMessage(from, {
+          text: `╔═〘 ${crime.emoji}ᴄʀɪᴍᴇ sᴜᴄᴄᴇss 〙═╗
+┃➠ ᴄʀɪᴍᴇ: ${crime.name}
+┃➠ ɢʀᴏᴜᴘ: ${groupName}
+┃
+┃➠ 📝 ${successMsg}
+┃➠ 💰 sᴛᴏʟᴇɴ: ${currencySymbol}${formatCash(earned)}
+┃➠ 💰 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ${currencySymbol}${formatCash(newBalance)}
+┃
+┃➠ 🦹 ᴛᴏᴛᴀʟ ᴄʀɪᴍᴇs: ${newCrimeCount}
+┃➠ ⏰ ᴄᴏᴏʟᴅᴏᴡɴ: 2ʜ
+╚═══════════════════╝
+
+╭━━━━❮ ᴛɪᴘs ❯━⊷
+┃➠ 40% sᴜᴄᴇss ʀᴀᴛᴇ
+┃➠ ʜɪɢʜ ʀɪsᴋ ʜɪɢʜ ʀᴇᴡᴀʀᴅ
+╰━━━━━━━━━━━━━━━━━⊷`
+        }, { quoted: m })
+      }
 
     } else {
       // FAIL - JAIL + FINE
@@ -212,8 +334,11 @@ export default {
         db.set(crimeCountKey, newCrimeCount)
       ])
 
-      await sock.sendMessage(from, {
-        text: `╔═〘 🚨ᴄᴀᴜɢʜᴛ 〙═╗
+      try {
+        const failImg = await generateCrimeImage(sock, sender, 'fail', 0, fine, jailHours, crime.name)
+        await sock.sendMessage(from, {
+          image: failImg,
+          caption: `╔═〘 🚨ᴄᴀᴜɢʜᴛ 〙═╗
 ┃➠ ᴄʀɪᴍᴇ: ${crime.name}
 ┃➠ sᴛᴀᴛᴜs: ғᴀɪʟᴇᴅ
 ┃
@@ -229,7 +354,27 @@ export default {
 ┃➠ ᴄʀɪᴍᴇ ᴅᴏᴇsɴ'ᴛ ᴘᴀʏ
 ┃➠ 40% sᴜᴄᴄᴇss ᴏɴʟʏ
 ╰━━━━━━━━━━━━━━━━━⊷`
-      }, { quoted: m })
+        }, { quoted: m })
+      } catch (e) {
+        await sock.sendMessage(from, {
+          text: `╔═〘 🚨ᴄᴀᴜɢʜᴛ 〙═╗
+┃➠ ᴄʀɪᴍᴇ: ${crime.name}
+┃➠ sᴛᴀᴛᴜs: ғᴀɪʟᴇᴅ
+┃
+┃➠ 📝 ${failMsg}
+┃➠ 👮 ᴄᴏᴘs ᴄᴀᴜɢʜᴛ ʏᴏᴜ
+┃➠ 🚨 ᴊᴀɪʟ ᴛɪᴍᴇ: ${jailHours}ʜ
+┃➠ 💸 ғɪɴᴇ: ${currencySymbol}${formatCash(fine)}
+┃
+┃➠ 💰 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ${currencySymbol}${formatCash(newBalance)}
+╚═══════════════════╝
+
+╭━━━━❮ ᴡᴀʀɴɪɴɢ ❯━⊷
+┃➠ ᴄʀɪᴍᴇ ᴅᴏᴇsɴ'ᴛ ᴘᴀʏ
+┃➠ 40% sᴜᴄᴄᴇss ᴏɴʟʏ
+╰━━━━━━━━━━━━━━━━━⊷`
+        }, { quoted: m })
+      }
     }
   }
 }
