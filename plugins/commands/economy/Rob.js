@@ -1,8 +1,17 @@
 /**
  * SwiftBot - plugins/commands/economy/rob.js
- * Group-Based Rob System with Image Response
+ * Group-Based Rob System with Generated Images
  * Uses db keys: eco_${groupJid}_balance_${user}, eco_${groupJid}_jail_${user}
  */
+
+import sharp from 'sharp'
+import axios from 'axios'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ASSETS_DIR = path.join(__dirname, 'assets')
 
 const formatCash = (num) => {
   return Number(num || 0).toLocaleString('en-US')
@@ -14,10 +23,129 @@ const formatTime = (ms) => {
   return `${hours}h ${minutes}m`
 }
 
-// IMAGE URLS - BADILISHA HIZI
-const ROB_SUCCESS_IMG = 'https://i.imgur.com/4M7IWwP.jpg' // Picha ukiiba success
-const ROB_FAIL_IMG = 'https://i.imgur.com/qZQZQZQ.jpg' // Picha ukishikwa
-const ROB_JAIL_IMG = 'https://i.imgur.com/JAIL123.jpg' // Picha ukiwa jail
+// WORKING IMAGE URLS FROM YOUR LIST
+const SUCCESS_IMG_URL = 'https://i.ibb.co/qYq2nJgM/images-2.jpg' // steal_success
+const JAIL_IMG_URL = 'https://i.ibb.co/pBdkbvrq/sddefault.jpg' // jail_caught
+
+const getUserPfp = async (sock, jid) => {
+  try {
+    const pfpUrl = await sock.profilePictureUrl(jid, 'image')
+    const res = await axios.get(pfpUrl, { 
+      responseType: 'arraybuffer',
+      timeout: 10000 
+    })
+    return Buffer.from(res.data)
+  } catch {
+    // Fallback colored circle
+    return await sharp({
+      create: {
+        width: 100,
+        height: 100,
+        channels: 4,
+        background: { r: 100, g: 50, b: 200, alpha: 1 }
+      }
+    }).png().toBuffer()
+  }
+}
+
+const generateRobImage = async (sock, sender, target, type, amount = 0, fine = 0, jailHours = 0) => {
+  const [senderPfp, targetPfp] = await Promise.all([
+    getUserPfp(sock, sender),
+    getUserPfp(sock, target)
+  ])
+
+  const senderCircle = await sharp(senderPfp)
+   .resize(100, 100)
+   .composite([{ input: Buffer.from(`<svg><circle cx="50" cy="50" r="50"/></svg>`), blend: 'dest-in' }])
+   .png().toBuffer()
+
+  const targetCircle = await sharp(targetPfp)
+   .resize(100, 100)
+   .composite([{ input: Buffer.from(`<svg><circle cx="50" cy="50" r="50"/></svg>`), blend: 'dest-in' }])
+   .png().toBuffer()
+
+  let bgColor, title, mainText, bgImageUrl = null
+  if (type === 'success') {
+    bgColor = '#0a4d0a'
+    title = 'ROB SUCCESS'
+    mainText = `STOLE $${formatCash(amount)}`
+    bgImageUrl = SUCCESS_IMG_URL // Use your ibb.co image
+  } else if (type === 'fail') {
+    bgColor = '#4d0a0a'
+    title = 'CAUGHT'
+    mainText = `JAIL ${jailHours}H | FINE $${formatCash(fine)}`
+    bgImageUrl = JAIL_IMG_URL // Use your ibb.co image
+  } else {
+    bgColor = '#1a1a1a'
+    title = 'IN JAIL'
+    mainText = `RELEASE IN ${jailHours}M`
+    // Use local jail_bars.png if exists
+    const jailBarsPath = path.join(ASSETS_DIR, 'jail_bars.png')
+    if (fs.existsSync(jailBarsPath)) {
+      bgImageUrl = jailBarsPath
+    }
+  }
+
+  // Download background image if URL
+  let bgBuffer = null
+  if (bgImageUrl) {
+    try {
+      if (bgImageUrl.startsWith('http')) {
+        const res = await axios.get(bgImageUrl, { responseType: 'arraybuffer', timeout: 10000 })
+        bgBuffer = await sharp(Buffer.from(res.data)).resize(800, 400, { fit: 'cover' }).png().toBuffer()
+      } else if (fs.existsSync(bgImageUrl)) {
+        bgBuffer = await sharp(bgImageUrl).resize(800, 400, { fit: 'cover' }).png().toBuffer()
+      }
+    } catch (e) {
+      console.error('BG image load failed:', e.message)
+    }
+  }
+
+  const svg = `
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:${bgColor};stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#000;stop-opacity:0.95" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="800" height="400" fill="url(#bg)"/>
+
+  <!-- Title -->
+  <text x="400" y="60" font-family="Arial Black" font-size="42" fill="#fff" text-anchor="middle" filter="url(#glow)">${title}</text>
+
+  <!-- Main Text -->
+  <text x="400" y="320" font-family="Arial Black" font-size="32" fill="#ffcc00" text-anchor="middle">${mainText}</text>
+
+  <!-- VS Text -->
+  <text x="400" y="200" font-family="Arial Black" font-size="48" fill="#fff" text-anchor="middle" opacity="0.8">VS</text>
+</svg>`
+
+  const composite = [
+    { input: Buffer.from(svg), top: 0, left: 0 },
+    { input: senderCircle, top: 150, left: 150 },
+    { input: targetCircle, top: 150, left: 550 }
+  ]
+
+  if (bgBuffer) {
+    composite.unshift({ input: bgBuffer, top: 0, left: 0 })
+  }
+
+  return await sharp({
+    create: { width: 800, height: 400, channels: 4, background: bgColor }
+  })
+  .composite(composite)
+  .png()
+  .toBuffer()
+}
 
 export default {
   name: 'rob',
@@ -107,15 +235,25 @@ export default {
     // 5. CHECK IF SENDER IN JAIL
     if (senderJail && Date.now() < senderJail) {
       const remaining = Math.ceil((senderJail - Date.now()) / 60000)
-      return await sock.sendMessage(from, {
-        image: { url: ROB_JAIL_IMG },
-        caption: `╔═〘 🚨ᴊᴀɪʟ 〙═╗
+      try {
+        const jailImg = await generateRobImage(sock, sender, target, 'jail', 0, 0, remaining)
+        return await sock.sendMessage(from, {
+          image: jailImg,
+          caption: `╔═〘 🚨ᴊᴀɪʟ 〙═╗
 ┃➠ ʏᴏᴜ'ʀᴇ ᴀʟʀᴇᴀᴅʏ ɪɴ ᴊᴀɪʟ
 ┃
 ┃➠ ⏰ ʀᴇʟᴇᴀsᴇ ɪɴ: ${remaining}ᴍ
 ┃➠ ᴄᴀɴ'ᴛ ʀᴏʙ ғʀᴏᴍ ᴊᴀɪʟ
 ╚═══════════════════╝`
-      }, { quoted: m })
+        }, { quoted: m })
+      } catch {
+        return await sock.sendMessage(from, {
+          text: `╔═〘 🚨ᴊᴀɪʟ 〙═╗
+┃➠ ʏᴏᴜ'ʀᴇ ᴀʟʀᴇᴀᴅʏ ɪɴ ᴊᴀɪʟ
+┃➠ ⏰ ʀᴇʟᴇᴀsᴇ ɪɴ: ${remaining}ᴍ
+╚═══════════════════╝`
+        }, { quoted: m })
+      }
     }
 
     // 6. CHECK IF TARGET IN JAIL
@@ -176,9 +314,11 @@ export default {
         db.set(robCountKey, newRobCount)
       ])
 
-      await sock.sendMessage(from, {
-        image: { url: ROB_SUCCESS_IMG },
-        caption: `╔═〘 🦹ʀᴏʙ sᴜᴄᴄᴇss 〙═╗
+      try {
+        const successImg = await generateRobImage(sock, sender, target, 'success', stolenAmount)
+        await sock.sendMessage(from, {
+          image: successImg,
+          caption: `╔═〘 🦹ʀᴏʙ sᴜᴄᴄᴇss 〙═╗
 ┃➠ ʏᴏᴜ ʀᴏʙʙᴇᴅ @${target.split('@')[0]}
 ┃
 ┃➠ 💰 sᴛᴏʟᴇɴ: ${currencySymbol}${formatCash(stolenAmount)}
@@ -187,12 +327,22 @@ export default {
 ┃➠ 🦹 ᴛᴏᴛᴀʟ ʀᴏʙs: ${newRobCount}
 ┃➠ ⏰ ᴄᴏᴏʟᴅᴏᴡɴ: 1ʜ
 ╚═══════════════════╝`,
-        mentions: [sender, target]
-      }, { quoted: m })
+          mentions: [sender, target]
+        }, { quoted: m })
+      } catch (e) {
+        await sock.sendMessage(from, {
+          text: `╔═〘 🦹ʀᴏʙ sᴜᴄᴄᴇss 〙═╗
+┃➠ 💰 sᴛᴏʟᴇɴ: ${currencySymbol}${formatCash(stolenAmount)}
+┃➠ 💰 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ${currencySymbol}${formatCash(newSenderBalance)}
+╚═══════════════════╝`,
+          mentions: [sender, target]
+        }, { quoted: m })
+      }
 
     } else {
       // FAIL - GO TO JAIL 2-6 HOURS + FINE
-      const jailTime = now + (Math.floor(Math.random() * 4 + 2) * 60 * 60 * 1000) // 2-6hrs
+      const jailHours = Math.floor(Math.random() * 4 + 2) // 2-6hrs
+      const jailTime = now + (jailHours * 60 * 60 * 1000)
       const fine = Math.floor(currentSenderBalance * 0.1) // 10% fine
       const newSenderBalance = Math.max(0, currentSenderBalance - fine)
 
@@ -203,11 +353,11 @@ export default {
         db.set(robCountKey, newRobCount)
       ])
 
-      const jailHours = Math.ceil((jailTime - now) / 3600000)
-
-      await sock.sendMessage(from, {
-        image: { url: ROB_FAIL_IMG },
-        caption: `╔═〘 🚨ᴄᴀᴜɢʜᴛ 〙═╗
+      try {
+        const failImg = await generateRobImage(sock, sender, target, 'fail', 0, fine, jailHours)
+        await sock.sendMessage(from, {
+          image: failImg,
+          caption: `╔═〘 🚨ᴄᴀᴜɢʜᴛ 〙═╗
 ┃➠ ʏᴏᴜ ғᴀɪʟᴇᴅ ᴛʜᴇ ʀᴏʙ
 ┃
 ┃➠ 👮 ᴄᴏᴘs ᴄᴀᴜɢʜᴛ ʏᴏᴜ
@@ -216,8 +366,18 @@ export default {
 ┃
 ┃➠ 💰 ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ${currencySymbol}${formatCash(newSenderBalance)}
 ╚═══════════════════╝`,
-        mentions: [sender, target]
-      }, { quoted: m })
+          mentions: [sender, target]
+        }, { quoted: m })
+      } catch (e) {
+        await sock.sendMessage(from, {
+          text: `╔═〘 🚨ᴄᴀᴜɢʜᴛ 〙═╗
+┃➠ ᴊᴀɪʟ ᴛɪᴍᴇ: ${jailHours}ʜ
+┃➠ ғɪɴᴇ: ${currencySymbol}${formatCash(fine)}
+┃➠ ɴᴇᴡ ʙᴀʟᴀɴᴄᴇ: ${currencySymbol}${formatCash(newSenderBalance)}
+╚═══════════════════╝`,
+          mentions: [sender, target]
+        }, { quoted: m })
+      }
     }
   }
 }
