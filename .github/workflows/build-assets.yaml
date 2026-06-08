@@ -1,0 +1,41 @@
+name: Build Economy Assets
+on:
+  push:
+    paths:
+      - 'assets.json'
+      - 'scripts/build-assets.js'
+  workflow_dispatch:
+
+jobs:
+  download-assets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install deps
+        run: npm install axios fluent-ffmpeg
+
+      - name: Run asset builder
+        run: node scripts/build-assets.js
+
+      - name: Commit built assets
+        run: |
+          git config user.name "SwiftBot Assets"
+          git config user.email "assets@swiftbot.dev"
+          git add plugins/commands/economy/assets/
+          git add plugins/commands/economy/assets.js
+          git diff --staged --quiet || git commit -m "Auto-build: Update backgrounds from assets.json [skip ci]"
+          git push
