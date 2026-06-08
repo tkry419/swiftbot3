@@ -18,11 +18,31 @@ const getGangLimit = (vaultLevel) => {
   return 100000 * Math.pow(5, vaultLevel) // LV0=100k, LV1=500k, LV2=2.5m, LV3=12.5m, LV4=62.5m, LV5=312.5m
 }
 
+const getGangPower = async (db, groupId, gangName) => {
+  const [members, armory, turf] = await Promise.all([
+    db.get(`eco_${groupId}_gang_${gangName}_members`),
+    db.get(`eco_${groupId}_gang_${gangName}_armory`),
+    db.get(`eco_${groupId}_gang_${gangName}_turf`)
+  ])
+  const memberList = JSON.parse(members || '[]')
+
+  let totalPower = 0
+  for (const member of memberList) {
+    const [level, bank] = await Promise.all([
+      db.get(`eco_${groupId}_level_${member}`),
+      db.get(`eco_${groupId}_bank_${member}`)
+    ])
+    totalPower += (level || 1) * 100 + Math.floor((bank || 0) / 10000)
+  }
+
+  return totalPower + ((armory || 0) * 15) + ((turf || 0) * 5)
+}
+
 export default {
   name: 'gang',
   alias: ['clan', 'squad'],
   desc: 'Create/join gangs, shared bank, upgrades',
-  usage: 'create <name> | join <name> | leave | info | deposit <amount> | withdraw <amount> | upgrade <type>',
+  usage: 'create <name> | join <name> | leave | info | deposit <amount> | withdraw <amount> | upgrade <type> | members',
   category: 'Economy',
   permission: 'all',
 
@@ -35,7 +55,7 @@ export default {
       const ecoEnabled = await db.getGroupKey(from, 'eco_enabled')
       if (!ecoEnabled) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ᴇᴄᴏɴᴏᴍʏ ᴅɪsᴀʙʟᴇᴅ
 ┃➠ ᴀsᴋ ᴀᴅᴍɪɴ ᴛᴏ ᴇɴᴀʙʟᴇ:
 ┃➠ ${prefix}ecoon
@@ -77,7 +97,7 @@ export default {
       const gangName = args.slice(1).join(' ').toLowerCase().replace(/[^a-z0-9]/g, '')
       if (!gangName || gangName.length < 3) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ɪɴᴠᴀʟɪᴅ ɢᴀɴɢ ɴᴀᴍᴇ
 ┃➠ ᴍɪɴ 3 ᴄʜᴀʀs, ᴀ-ᴢ 0-9 ᴏɴʟʏ
 ┃➠ ᴜsᴀɢᴇ: ${prefix}gang create <name>
@@ -87,7 +107,7 @@ export default {
 
       if (userGang) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ᴀʟʀᴇᴀᴅʏ ɪɴ ɢᴀɴɢ: ${userGang}
 ┃➠ ᴜsᴇ ${prefix}gang leave first
 ╚═══════════════════╝`
@@ -98,9 +118,9 @@ export default {
       const owner = await db.get(gangExistsKey)
       if (owner) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ɢᴀɴɢ "${gangName}" ᴇxɪsᴛs
-┃➠ ᴄʜᴏᴏsᴇ ᴀɴᴏᴛʜᴇʀ ɴᴀᴍᴇ
+┃➠ ᴄʜᴏsᴇ ᴀɴᴏᴛʜᴇʀ ɴᴀᴍᴇ
 ╚═══════════════════╝`
         }, { quoted: m })
       }
@@ -108,7 +128,7 @@ export default {
       const createCost = 25000
       if (!balance || balance < createCost) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ɴᴏᴛ ᴇɴᴏᴜɢʜ ᴄᴀsʜ
 ┃➠ ᴄᴏsᴛ: ${currencySymbol}${formatCash(createCost)}
 ┃➠ ʏᴏᴜʀ ᴄᴀsʜ: ${currencySymbol}${formatCash(balance || 0)}
@@ -136,6 +156,7 @@ export default {
 ┃➠ 🏦 ɢᴀɴɢ ʙᴀɴᴋ: ${currencySymbol}0
 ┃➠ 👥 ᴍᴇᴍʙᴇʀs: 1
 ┃➠ 📈 ʙᴀɴᴋ ʟɪᴍɪᴛ: ${currencySymbol}${formatCash(getGangLimit(0))}
+┃➠ 💪 ᴘᴏᴡᴇʀ: 10
 ╚═══════════════════╝
 
 ╭━━━━❮ ᴄᴏᴍᴀɴᴅs ❯━⊷
@@ -151,7 +172,7 @@ export default {
       const gangName = args.slice(1).join(' ').toLowerCase().replace(/[^a-z0-9]/g, '')
       if (!gangName) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ sᴘᴇᴄɪғʏ ɢᴀɴɢ ɴᴀᴍᴇ
 ┃➠ ᴜsᴀɢᴇ: ${prefix}gang join <name>
 ╚═══════════════════╝`
@@ -160,7 +181,7 @@ export default {
 
       if (userGang) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ᴀʟʀᴇᴀᴅʏ ɪɴ ɢᴀɴɢ: ${userGang}
 ┃➠ ᴜsᴇ ${prefix}gang leave first
 ╚═══════════════════╝`
@@ -171,7 +192,7 @@ export default {
       const owner = await db.get(gangExistsKey)
       if (!owner) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ɢᴀɴɢ "${gangName}" ɴᴏᴛ ғᴏᴜɴᴅ
 ╚═══════════════════╝`
         }, { quoted: m })
@@ -182,8 +203,8 @@ export default {
 
       if (members.length >= 10) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ɢᴀɴɢ ғᴜʟʟ: 10/10
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+┃➠ ɢᴀɴɢ ғᴜʟ: 10/10
 ╚═══════════════════╝`
         }, { quoted: m })
       }
@@ -206,7 +227,7 @@ export default {
     if (subCmd === 'leave') {
       if (!userGang) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ʏᴏᴜ'ʀᴇ ɴᴏᴛ ɪɴ ᴀ ɢᴀɴɢ
 ╚═══════════════════╝`
         }, { quoted: m })
@@ -219,9 +240,9 @@ export default {
 
       if (owner === sender && memberList.length > 0) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ᴏᴡɴᴇʀ ᴄᴀɴ'ᴛ ʟᴇᴀᴠᴇ
-┃➠ ᴋɪᴄᴋ ᴀʟʟ ᴍᴇᴍʙᴇʀs ᴛᴏ ᴅɪsʙᴀɴᴅ
+┃➠ ᴋɪᴄᴋ ᴀʟ ᴍᴇᴍʙᴇʀs ᴛᴏ ᴅɪsʙᴀɴᴅ
 ╚═══════════════════╝`
         }, { quoted: m })
       }
@@ -252,11 +273,42 @@ export default {
       }, { quoted: m })
     }
 
-    // 7. GANG INFO
+    // 7. MEMBERS LIST
+    if (subCmd === 'members') {
+      if (!userGang) {
+        return await sock.sendMessage(from, {
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+┃➠ ʏᴏᴜ'ʀᴇ ɴᴏᴛ ɪɴ ᴀ ɢᴀɴɢ
+╚═══════════════════╝`
+        }, { quoted: m })
+      }
+
+      const [members, owner] = await Promise.all([
+        db.get(`eco_${groupId}_gang_${userGang}_members`),
+        db.get(`eco_${groupId}_gang_${userGang}_owner`)
+      ])
+
+      const memberList = JSON.parse(members || '[]')
+      let memberText = `╔═〘 👥ᴍᴇᴍʙᴇʀs 〙═╗\n┃➠ ɢᴀɴɢ: ${userGang}\n┃\n`
+
+      for (const member of memberList) {
+        const [level, name] = await Promise.all([
+          db.get(`eco_${groupId}_level_${member}`),
+          db.get(`pushname_${member}`)
+        ])
+        const isOwner = member === owner? '👑 ' : ''
+        memberText += `┃➠ ${isOwner}@${name || member.split('@')[0]} - LV${level || 1}\n`
+      }
+
+      memberText += `╚═══════════════════╝`
+      return await sock.sendMessage(from, { text: memberText, mentions: memberList }, { quoted: m })
+    }
+
+    // 8. GANG INFO
     if (subCmd === 'info' ||!subCmd) {
       if (!userGang) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ʏᴏᴜ'ʀᴇ ɴᴏᴛ ɪɴ ᴀ ɢᴀɴɢ
 ┃➠ ${prefix}gang create <name>
 ┃➠ ${prefix}gang join <name>
@@ -275,6 +327,7 @@ export default {
 
       const memberList = JSON.parse(members || '[]')
       const isOwner = owner === sender
+      const power = await getGangPower(db, groupId, userGang)
 
       return await sock.sendMessage(from, {
         text: `╔═〘 🏴ɢᴀɴɢ ɪɴғᴏ 〙═╗
@@ -284,32 +337,34 @@ export default {
 ┃➠ 🏦 ʙᴀɴᴋ: ${currencySymbol}${formatCash(gangBank || 0)}
 ┃➠ 📈 ʟɪᴍɪᴛ: ${currencySymbol}${formatCash(getGangLimit(vault || 0))}
 ┃➠ 👥 ᴍᴇᴍʙᴇʀs: ${memberList.length}/10
+┃➠ 💪 ᴘᴏᴡᴇʀ: ${power}
 ┃
 ┃➠ 🔒 ᴠᴀᴜʟᴛ: LV${vault || 0}/${GANG_UPGRADES.vault.max}
 ┃➠ 🌆 ᴛᴜʀғ: LV${turf || 0}/${GANG_UPGRADES.turf.max}
 ┃➠ 🔫 ᴀʀᴍᴏʀʏ: LV${armory || 0}/${GANG_UPGRADES.armory.max}
 ╚═══════════════════╝
 
-╭━━━━❮ ᴄᴏᴍᴍᴀɴᴅs ❯━⊷
+╭━━━━❮ ᴄᴏᴍᴀɴᴅs ❯━⊷
 ┃➠ ${prefix}gang deposit <amount>
 ┃➠ ${prefix}gang withdraw <amount>
 ┃➠ ${prefix}gang upgrade <type>
+┃➠ ${prefix}gang members
 ┃➠ ${prefix}war @user
 ╰━━━━━━━━━━━━━━━━━⊷`,
         mentions: isOwner? [] : [owner]
       }, { quoted: m })
     }
 
-    // 8. DEPOSIT
+    // 9. DEPOSIT
     if (subCmd === 'deposit') {
-      if (!userGang) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ʏᴏᴜ'ʀᴇ ɴᴏᴛ ɪɴ ᴀ ɢᴀɴɢ\n╚═══════════════════╝` }, { quoted: m })
+      if (!userGang) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ʏᴏᴜ'ʀᴇ ɴᴏᴛ ɪɴ ᴀ ɢᴀɴɢ\n╚═══════════════════╝` }, { quoted: m })
 
       const amount = parseInt(args[1])
       if (!amount || isNaN(amount) || amount < 1000) {
-        return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ᴍɪɴ ᴅᴇᴘᴏsɪᴛ: ${currencySymbol}1,000\n╚═══════════════════╝` }, { quoted: m })
+        return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ᴍɪɴ ᴅᴇᴘᴏsɪᴛ: ${currencySymbol}1,000\n╚═══════════════════╝` }, { quoted: m })
       }
       if (!balance || balance < amount) {
-        return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ɴᴏᴛ ᴇɴᴏᴜɢʜ ᴄᴀsʜ\n┃➠ ʏᴏᴜʀ ᴄᴀsʜ: ${currencySymbol}${formatCash(balance || 0)}\n╚═══════════════════╝` }, { quoted: m })
+        return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ɴᴏᴛ ᴇɴᴏᴜɢʜ ᴄᴀsʜ\n┃➠ ʏᴏᴜʀ ᴄᴀsʜ: ${currencySymbol}${formatCash(balance || 0)}\n╚═══════════════════╝` }, { quoted: m })
       }
 
       const [gangBank, vault] = await Promise.all([
@@ -318,7 +373,7 @@ export default {
       ])
       const limit = getGangLimit(vault || 0)
       if ((gangBank || 0) + amount > limit) {
-        return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ɢᴀɴɢ ʙᴀɴᴋ ғᴜʟʟ\n┃➠ ʟɪᴍɪᴛ: ${currencySymbol}${formatCash(limit)}\n╚═══════════════════╝` }, { quoted: m })
+        return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ɢᴀɴɢ ʙᴀɴᴋ ғᴜʟ\n┃➠ ʟɪᴍɪᴛ: ${currencySymbol}${formatCash(limit)}\n╚═══════════════════╝` }, { quoted: m })
       }
 
       await Promise.all([
@@ -336,16 +391,16 @@ export default {
       }, { quoted: m })
     }
 
-    // 9. WITHDRAW - OWNER ONLY
+    // 10. WITHDRAW - OWNER ONLY
     if (subCmd === 'withdraw') {
-      if (!userGang) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ʏᴏᴜ'ʀᴇ ɴᴏᴛ ɪɴ ᴀ ɢᴀɴɢ\n╚═══════════════════╝` }, { quoted: m })
+      if (!userGang) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ʏᴏᴜ'ʀᴇ ɴᴏᴛ ɪɴ ᴀ ɢᴀɴɢ\n╚═══════════════════╝` }, { quoted: m })
       const owner = await db.get(`eco_${groupId}_gang_${userGang}_owner`)
-      if (owner!== sender) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ᴏɴʟʏ ᴏᴡɴᴇʀ ᴄᴀɴ ᴡɪᴛʜᴅʀᴀᴡ\n╚═══════════════════╝` }, { quoted: m })
+      if (owner!== sender) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ᴏɴʟʏ ᴏᴡɴᴇʀ ᴄᴀɴ ᴡɪᴛʜᴅʀᴀᴡ\n╚═══════════════════╝` }, { quoted: m })
 
       const amount = parseInt(args[1])
       const gangBank = await db.get(`eco_${groupId}_gang_${userGang}_bank`)
-      if (!amount || isNaN(amount) || amount < 1000) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ᴍɪɴ ᴡɪᴛʜᴅʀᴀᴡ: ${currencySymbol}1,000\n╚═══════════════════╝` }, { quoted: m })
-      if (!gangBank || gangBank < amount) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ɴᴏᴛ ᴇɴᴏᴜɢʜ ɪɴ ɢᴀɴɢ ʙᴀɴᴋ\n╚═══════════════════╝` }, { quoted: m })
+      if (!amount || isNaN(amount) || amount < 1000) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ᴍɪɴ ᴡɪᴛʜᴅʀᴀᴡ: ${currencySymbol}1,000\n╚═══════════════════╝` }, { quoted: m })
+      if (!gangBank || gangBank < amount) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ɴᴏᴛ ᴇɴᴏᴜɢʜ ɪɴ ɢᴀɴɢ ʙᴀɴᴋ\n╚═══════════════════╝` }, { quoted: m })
 
       await Promise.all([
         db.set(balanceKey, (balance || 0) + amount),
@@ -361,22 +416,22 @@ export default {
       }, { quoted: m })
     }
 
-    // 10. UPGRADE - OWNER ONLY
+    // 11. UPGRADE - OWNER ONLY
     if (subCmd === 'upgrade') {
-      if (!userGang) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ʏᴏᴜ'ʀᴇ ɴᴏᴛ ɪɴ ᴀ ɢᴀɴɢ\n╚═══════════════════╝` }, { quoted: m })
+      if (!userGang) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ʏᴏᴜ'ʀᴇ ɴᴏᴛ ɪɴ ᴀ ɢᴀɴɢ\n╚═══════════════════╝` }, { quoted: m })
       const owner = await db.get(`eco_${groupId}_gang_${userGang}_owner`)
-      if (owner!== sender) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ᴏɴʟʏ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜᴘɢʀᴀᴅᴇ\n╚═══════════════════╝` }, { quoted: m })
+      if (owner!== sender) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ᴏɴʟʏ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜᴘɢʀᴀᴅᴇ\n╚═══════════════════╝` }, { quoted: m })
 
       const upgradeType = args[1]?.toLowerCase()
-      if (!GANG_UPGRADES[upgradeType]) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ᴏᴘᴛɪᴏɴs: vault, turf, armory\n╚═══════════════════╝` }, { quoted: m })
+      if (!GANG_UPGRADES[upgradeType]) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ᴏᴘᴛɪᴏɴs: vault, turf, armory\n╚═══════════════════╝` }, { quoted: m })
 
       const currentLevel = await db.get(`eco_${groupId}_gang_${userGang}_${upgradeType}`) || 0
       const upgradeData = GANG_UPGRADES[upgradeType]
-      if (currentLevel >= upgradeData.max) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ${upgradeData.name} ᴀʟʀᴇᴀᴅʏ ᴍᴀx\n╚═══════════════════╝` }, { quoted: m })
+      if (currentLevel >= upgradeData.max) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ${upgradeData.name} ᴀʟʀᴇᴀᴅʏ ᴍᴀx\n╚═══════════════════╝` }, { quoted: m })
 
       const cost = upgradeData.cost[currentLevel]
       const gangBank = await db.get(`eco_${groupId}_gang_${userGang}_bank`)
-      if (!gangBank || gangBank < cost) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗\n┃➠ ɴᴏᴛ ᴇɴᴏᴜɢʜ ɪɴ ɢᴀɴɢ ʙᴀɴᴋ\n┃➠ ᴄᴏsᴛ: ${currencySymbol}${formatCash(cost)}\n╚═══════════════════╝` }, { quoted: m })
+      if (!gangBank || gangBank < cost) return await sock.sendMessage(from, { text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗\n┃➠ ɴᴏᴛ ᴇɴᴏᴜɢʜ ɪɴ ɢᴀɴɢ ʙᴀɴᴋ\n┃➠ ᴄᴏsᴛ: ${currencySymbol}${formatCash(cost)}\n╚═══════════════════╝` }, { quoted: m })
 
       await Promise.all([
         db.set(`eco_${groupId}_gang_${userGang}_bank`, gangBank - cost),
