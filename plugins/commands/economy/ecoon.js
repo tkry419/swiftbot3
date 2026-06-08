@@ -2,8 +2,31 @@
  * SwiftBot - plugins/commands/economy/ecoon.js
  * Enable/Disable Economy System per Group
  * Uses db keys: eco_enabled_${groupJid}
- * Owner/Admin only command
+ * Owner/Admin only command - Supports tag + reply
  */
+
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ASSETS_PATH = path.join(__dirname, 'assets.js')
+
+const formatCash = (num) => {
+  return Number(num || 0).toLocaleString('en-US')
+}
+
+// Load theme glow from assets.js
+const loadThemeGlow = async (groupId, db) => {
+  try {
+    if (fs.existsSync(ASSETS_PATH)) {
+      const { default: ASSETS } = await import(`./assets.js?update=${Date.now()}`)
+      const activeBg = await db.get(`eco_${groupId}_bg_${groupId}`) || 'default'
+      return ASSETS[activeBg]?.glow || '#00ff00'
+    }
+  } catch {}
+  return '#00ff00'
+}
 
 export default {
   name: 'ecoon',
@@ -15,12 +38,13 @@ export default {
 
   execute: async (sock, m, args, { db, prefix, isGroup, isAdmin, isOwner }) => {
     const from = m.key.remoteJid
+    const sender = m.key.participant || m.key.remoteJid
 
     // 1. CHECK IF GROUP
     if (!isGroup) {
       return await sock.sendMessage(from, {
-        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ ᴡᴏʀᴋs
+        text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+┃➠ ᴛʜɪs ᴄᴏᴍᴀɴᴅ ᴡᴏʀᴋs
 ┃➠ ɪɴ ɢʀᴏᴜᴘs ᴏɴʟʏ
 ╚═══════════════════╝`
       }, { quoted: m })
@@ -29,7 +53,7 @@ export default {
     // 2. CHECK PERMISSION - ADMIN OR OWNER
     if (!isAdmin &&!isOwner) {
       return await sock.sendMessage(from, {
-        text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+        text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ᴀᴅᴍɪɴ ᴏɴʟʏ ᴄᴏᴍᴍᴀɴᴅ
 ┃
 ┃➠ ᴀsᴋ ɢʀᴏᴜᴘ ᴀᴅᴍɪɴ ᴛᴏ
@@ -40,16 +64,16 @@ export default {
 
     const action = args[0]?.toLowerCase()
     const groupId = from
+    const glow = await loadThemeGlow(groupId, db)
 
-    // 3. FORGIVE / UN-JAIL
+    // 3. FORGIVE / UN-JAIL - SUPPORT TAG + REPLY
     if (action === 'forgive' || action === 'unjail' || action === 'pardon') {
       const target = m.mentionedJid?.[0] || m.message?.extendedTextMessage?.contextInfo?.participant || args[1]
 
       if (!target) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
-┃➠ ᴛᴀɢ sᴏᴍᴇᴏɴᴇ ᴛᴏ ғᴏʀɢɪᴠᴇ
-┃
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+┃➠ ᴛᴀɢ sᴏᴍᴇᴏɴᴇ ᴏʀ ʀᴇᴘʟʏ
 ┃➠ ᴜsᴀɢᴇ: ${prefix}ecoon forgive @user
 ┃➠ ᴏʀ ʀᴇᴘʟʏ ᴛᴏ ᴍᴇssᴀɢᴇ
 ╚═══════════════════╝`
@@ -67,14 +91,14 @@ export default {
         }, { quoted: m })
       }
 
-      await db.del(jailKey)
+      await db.set(jailKey, null) // db.del doesn't exist
       const targetName = target.split('@')[0]
 
       return await sock.sendMessage(from, {
         text: `╔═〘 ✅ғᴏʀɢɪᴠᴇɴ 〙═╗
 ┃➠ ᴜsᴇʀ ʀᴇʟᴇᴀsᴇᴅ ғʀᴏᴍ ᴊᴀɪʟ
 ┃
-┃➠ @${targetName} ɪs ɴᴏᴡ ғʀᴇᴇ
+┃➠ @${targetName} ɪs ɴᴏᴡ ғʀᴇ
 ┃➠ ᴄᴀɴ ᴜsᴇ ᴇᴄᴏ ᴄᴏᴍᴍᴀɴᴅs ᴀɢᴀɪɴ
 ╚═══════════════════╝`,
         mentions: [target]
@@ -87,7 +111,7 @@ export default {
 
       if (!target && args[1]!== 'all') {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ sᴘᴇᴄɪғʏ ᴛᴀʀɢᴇᴛ
 ┃
 ┃➠ ${prefix}ecoon reset @user
@@ -104,13 +128,13 @@ export default {
           await Promise.all([
             db.set(`eco_${groupId}_balance_${user}`, 0),
             db.set(`eco_${groupId}_bank_${user}`, 0),
-            db.del(`eco_${groupId}_jail_${user}`)
+            db.set(`eco_${groupId}_jail_${user}`, null)
           ])
         }))
 
         return await sock.sendMessage(from, {
           text: `╔═〘 ✅ʀᴇsᴇᴛ 〙═╗
-┃➠ ᴀʟʟ ᴜsᴇʀ ᴅᴀᴛᴀ ᴡɪᴘᴇᴅ
+┃➠ ᴀʟ ᴜsᴇʀ ᴅᴀᴛᴀ ᴡɪᴘᴇᴅ
 ┃
 ┃➠ ᴇᴠᴇʀʏᴏɴᴇ ʙᴀᴄᴋ ᴛᴏ 0
 ┃➠ ᴊᴀɪʟs ᴄʟᴇᴀʀᴇᴅ
@@ -121,7 +145,7 @@ export default {
       await Promise.all([
         db.set(`eco_${groupId}_balance_${target}`, 0),
         db.set(`eco_${groupId}_bank_${target}`, 0),
-        db.del(`eco_${groupId}_jail_${target}`)
+        db.set(`eco_${groupId}_jail_${target}`, null)
       ])
 
       const targetName = target.split('@')[0]
@@ -136,15 +160,15 @@ export default {
       }, { quoted: m })
     }
 
-    // 5. GIFT - TO USER OR ALL
+    // 5. GIFT - TO USER OR ALL - SUPPORT TAG + REPLY
     if (action === 'gift') {
       const amount = parseInt(args[1])
-      const target = m.mentionedJid?.[0] || args[2]
+      const target = m.mentionedJid?.[0] || m.message?.extendedTextMessage?.contextInfo?.participant || args[2]
       const currency = await db.getGroupKey(groupId, 'eco_currency') || '$'
 
       if (!amount || amount <= 0) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ɪɴᴠᴀʟɪᴅ ᴀᴍᴏᴜɴᴛ
 ┃
 ┃➠ ${prefix}ecoon gift 1000 @user
@@ -153,20 +177,21 @@ export default {
         }, { quoted: m })
       }
 
-      if (args[2] === 'all') {
+      if (args[2] === 'all' || args[1] === 'all') {
+        const giftAmount = args[2] === 'all'? parseInt(args[1]) : amount
         const groupMetadata = await sock.groupMetadata(from)
         const participants = groupMetadata.participants.map(p => p.id)
 
         await Promise.all(participants.map(async (user) => {
           const bal = await db.get(`eco_${groupId}_balance_${user}`) || 0
-          await db.set(`eco_${groupId}_balance_${user}`, bal + amount)
+          await db.set(`eco_${groupId}_balance_${user}`, bal + giftAmount)
         }))
 
         return await sock.sendMessage(from, {
           text: `╔═〘 ✅ɢɪғᴛᴇᴅ 〙═╗
-┃➠ ɢɪғᴛ sᴇɴᴛ ᴛᴏ ᴀʟʟ
+┃➠ ɢɪғᴛ sᴇɴᴛ ᴛᴏ ᴀʟ
 ┃
-┃➠ 💰 ᴀᴍᴏᴜɴᴛ: ${currency}${amount}
+┃➠ 💰 ᴀᴍᴏᴜɴᴛ: ${currency}${formatCash(giftAmount)}
 ┃➠ 👥 ᴍᴇᴍʙᴇʀs: ${participants.length}
 ╚═══════════════════╝`
         }, { quoted: m })
@@ -174,7 +199,7 @@ export default {
 
       if (!target) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ᴛᴀɢ sᴏᴍᴇᴏɴᴇ ᴏʀ ᴜsᴇ 'all'
 ┃
 ┃➠ ${prefix}ecoon gift 1000 @user
@@ -192,7 +217,7 @@ export default {
 ┃➠ ɢɪғᴛ sᴇɴᴛ
 ┃
 ┃➠ ᴛᴏ: @${targetName}
-┃➠ 💰 ᴀᴍᴏᴜɴᴛ: ${currency}${amount}
+┃➠ 💰 ᴀᴍᴏᴜɴᴛ: ${currency}${formatCash(amount)}
 ╚═══════════════════╝`,
         mentions: [target]
       }, { quoted: m })
@@ -221,12 +246,12 @@ export default {
       } catch {}
 
       return await sock.sendMessage(from, {
-        text: `╔═〘 ⚙️ᴇᴄᴏ sᴇᴛᴛɪɴɢs 〙═╗
+        text: `╔═〘 ⚙️ᴇᴄᴏ sᴇᴛɪɴɢs 〙═╗
 ┃➠ ɢʀᴏᴜᴘ: ${groupName}
 ┃
 ┃➠ sᴛᴀᴛᴜs: ${enabled? '🟢 ᴇɴᴀʙʟᴇᴅ' : '🔴 ᴅɪsᴀʙʟᴇᴅ'}
 ┃
-┃➠ 💰 ᴄᴜʀʀᴇɴᴄʏ: ${currency || '$'}
+┃➠ 💰 ᴄᴜʀᴇɴᴄʏ: ${currency || '$'}
 ┃➠ 🎁 sᴛᴀʀᴛ ʙᴏɴᴜs: ${currency || '$'}${startBonus || 500}
 ┃➠ 📅 ᴅᴀɪʟʏ ᴀᴍᴏᴜɴᴛ: ${currency || '$'}${dailyAmount || 1000}
 ┃➠ 💸 ᴛᴀx ʀᴀᴛᴇ: ${tax || 5}%
@@ -279,7 +304,7 @@ export default {
         text: `╔═〘 ❌ᴅɪsᴀʙʟᴇᴅ 〙═╗
 ┃➠ ᴇᴄᴏɴᴏᴍʏ ᴅɪsᴀʙʟᴇᴅ
 ┃
-┃➠ ᴀʟ ᴇᴄᴏ ᴄᴏᴍᴍᴀɴᴅs ᴀʀᴇ
+┃➠ ᴀʟ ᴇᴄᴏ ᴄᴏᴍᴀɴᴅs ᴀʀᴇ
 ┃➠ ɴᴏᴡ ᴏғғ ғᴏʀ ᴛʜɪs ɢʀᴏᴜᴘ
 ┃
 ┃➠ ᴅᴀᴛᴀ sᴛɪʟ sᴀᴠᴇᴅ
@@ -294,7 +319,7 @@ export default {
 
       if (!key ||!value) {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ᴍɪssɪɴɢ ᴘᴀʀᴀᴍᴇᴛᴇʀs
 ┃
 ┃➠ ᴜsᴀɢᴇ: ${prefix}ecoon set <key> <value>
@@ -319,7 +344,7 @@ export default {
           const num = parseInt(value)
           if (isNaN(num) || num < 0) {
             return await sock.sendMessage(from, {
-              text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+              text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ɪɴᴠᴀʟɪᴅ ɴᴜᴍʙᴇʀ
 ┃
 ┃➠ ᴍᴜsᴛ ʙᴇ ᴘᴏsɪᴛɪᴠᴇ ɴᴜᴍʙᴇʀ
@@ -339,7 +364,7 @@ export default {
         }, { quoted: m })
       } else {
         return await sock.sendMessage(from, {
-          text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+          text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ɪɴᴠᴀʟɪᴅ ᴋᴇʏ
 ┃
 ┃➠ ᴠᴀʟɪᴅ ᴋᴇʏs: bonus, currency, daily, tax
@@ -350,7 +375,7 @@ export default {
 
     // 10. INVALID COMMAND
     await sock.sendMessage(from, {
-      text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
+      text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
 ┃➠ ɪɴᴠᴀʟɪᴅ ᴄᴏᴍᴍᴀɴᴅ
 ┃
 ┃➠ ᴜsᴇ: ${prefix}ecoon on/off/status/forgive/reset/gift
