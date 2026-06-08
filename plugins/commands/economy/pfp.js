@@ -1,12 +1,19 @@
 /**
  * SwiftBot - plugins/commands/economy/profile.js
- * Dynamic Profile Card - 30 Backgrounds with GLOW SVG + Full Stats
+ * Dynamic Profile Card - Auto-reads from assets.js
  * Uses Sharp + Jimp - Shows PFP, Name, Balance, Level, Marriage, Gang, Bank Tier
  */
 
 import sharp from 'sharp'
 import Jimp from 'jimp'
 import fetch from 'node-fetch'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ASSETS_PATH = path.join(__dirname, 'assets.js')
+const ASSETS_DIR = path.join(__dirname, 'assets')
 
 const formatCash = (num) => {
   return Number(num || 0).toLocaleString('en-US')
@@ -30,38 +37,34 @@ const calculateXpProgress = (xp) => {
   return Math.floor(progress)
 }
 
-// 30 BACKGROUNDS - SAME NAMES + PRICES - BRIGHTER COLORS + GLOW SVG
-const BACKGROUNDS = {
-  'default': { name: 'Hacker', color: '#0d2818', pattern: 'matrix', glow: '#00ff00', price: 0 },
-  'cyber': { name: 'Cyber', color: '#2d0a4d', pattern: 'grid', glow: '#9600ff', price: 5000 },
-  'neon': { name: 'Neon', color: '#003333', pattern: 'lines', glow: '#00ffff', price: 5000 },
-  'sunset': { name: 'Sunset', color: '#4d1a1a', pattern: 'gradient', glow: '#ff6600', price: 8000 },
-  'ocean': { name: 'Ocean', color: '#0d2d4d', pattern: 'waves', glow: '#00b4ff', price: 8000 },
-  'forest': { name: 'Forest', color: '#1a330d', pattern: 'dots', glow: '#00ff64', price: 8000 },
-  'galaxy': { name: 'Galaxy', color: '#1a0d33', pattern: 'stars', glow: '#aa00ff', price: 15000 },
-  'fire': { name: 'Fire', color: '#4d1500', pattern: 'flame', glow: '#ff3200', price: 10000 },
-  'ice': { name: 'Ice', color: '#0d334d', pattern: 'crystal', glow: '#00d4ff', price: 10000 },
-  'gold': { name: 'Gold', color: '#332600', pattern: 'luxury', glow: '#ffd700', price: 25000 },
-  'silver': { name: 'Silver', color: '#333333', pattern: 'metal', glow: '#e0e0e0', price: 20000 },
-  'purple': { name: 'Purple', color: '#33004d', pattern: 'royal', glow: '#c800ff', price: 12000 },
-  'red': { name: 'Red', color: '#4d0000', pattern: 'blood', glow: '#ff0000', price: 10000 },
-  'blue': { name: 'Blue', color: '#00004d', pattern: 'deep', glow: '#0064ff', price: 10000 },
-  'green': { name: 'Green', color: '#004d00', pattern: 'nature', glow: '#00ff00', price: 10000 },
-  'pink': { name: 'Pink', color: '#4d004d', pattern: 'cute', glow: '#ff00ff', price: 12000 },
-  'orange': { name: 'Orange', color: '#4d2600', pattern: 'warm', glow: '#ff9600', price: 10000 },
-  'teal': { name: 'Teal', color: '#004d4d', pattern: 'calm', glow: '#00ffc8', price: 10000 },
-  'void': { name: 'Void', color: '#1a1a1a', pattern: 'black', glow: '#ff00ff', price: 30000 },
-  'light': { name: 'Light', color: '#333333', pattern: 'minimal', glow: '#ffffff', price: 15000 },
-  'rainbow': { name: 'Rainbow', color: '#2d2d2d', pattern: 'colorful', glow: '#ff00ff', price: 20000 },
-  'carbon': { name: 'Carbon', color: '#1a1a1a', pattern: 'fiber', glow: '#00ffaa', price: 18000 },
-  'diamond': { name: 'Diamond', color: '#2d2d4d', pattern: 'gems', glow: '#b4ffff', price: 50000 },
-  'emerald': { name: 'Emerald', color: '#0d3320', pattern: 'jewel', glow: '#00ff96', price: 40000 },
-  'ruby': { name: 'Ruby', color: '#330d0d', pattern: 'stone', glow: '#ff0064', price: 40000 },
-  'sapphire': { name: 'Sapphire', color: '#0d0d33', pattern: 'crystal', glow: '#0064ff', price: 40000 },
-  'cosmic': { name: 'Cosmic', color: '#1a0d4d', pattern: 'space', glow: '#aa00ff', price: 35000 },
-  'toxic': { name: 'Toxic', color: '#2d4d00', pattern: 'poison', glow: '#96ff00', price: 15000 },
-  'vintage': { name: 'Vintage', color: '#332200', pattern: 'retro', glow: '#ffb400', price: 12000 },
-  'future': { name: 'Future', color: '#0d2d4d', pattern: 'tech', glow: '#00c8ff', price: 30000 }
+// FALLBACK IF assets.js FAILS
+const FALLBACK_BACKGROUNDS = {
+  'default': {
+    id: 'default',
+    name: 'Default',
+    price: 0,
+    tier: 'common',
+    glow: '#ffffff',
+    type: 'static'
+  }
+}
+
+// AUTO-LOAD FROM assets.js
+const loadBackgrounds = async () => {
+  try {
+    if (fs.existsSync(ASSETS_PATH)) {
+      const { default: ASSETS } = await import(`./assets.js?update=${Date.now()}`)
+      const bgs = {...ASSETS }
+      delete bgs.overlays
+      if (!bgs.default) {
+        bgs.default = FALLBACK_BACKGROUNDS.default
+      }
+      return bgs
+    }
+  } catch (e) {
+    console.error('Failed to load assets.js:', e.message)
+  }
+  return FALLBACK_BACKGROUNDS
 }
 
 const BANK_UPGRADES = [
@@ -72,79 +75,32 @@ const BANK_UPGRADES = [
   { level: 4, limit: 25000000, name: 'Offshore Account' },
   { level: 5, limit: 100000000, name: 'Swiss Bank' },
   { level: 6, limit: 500000000, name: 'Central Reserve' }
-]
+}
 
-async function generateBackground(theme) {
-  const bg = BACKGROUNDS[theme] || BACKGROUNDS.default
+async function generateBackground(theme, bgData) {
   const width = 1200, height = 630
-  const image = await Jimp.create(width, height, bg.color)
 
-  // Enhanced patterns with GLOW
-  if (bg.pattern === 'matrix') {
-    for (let i = 0; i < 300; i++) {
-      const x = Math.random() * width
-      const y = Math.random() * height
-      image.setPixelColor(Jimp.rgbaToInt(0, 255, 0, Math.random() * 200 + 100), x, y)
-    }
-  } else if (bg.pattern === 'grid') {
-    for (let x = 0; x < width; x += 30) {
-      for (let y = 0; y < height; y++) {
-        image.setPixelColor(Jimp.rgbaToInt(150, 0, 255, 150), x, y)
-      }
-    }
-    for (let y = 0; y < height; y += 30) {
-      for (let x = 0; x < width; x++) {
-        image.setPixelColor(Jimp.rgbaToInt(150, 0, 255, 150), x, y)
-      }
-    }
-  } else if (bg.pattern === 'stars') {
-    for (let i = 0; i < 500; i++) {
-      const x = Math.random() * width
-      const y = Math.random() * height
-      image.setPixelColor(Jimp.rgbaToInt(255, 255, 255, Math.random() * 255), x, y)
-    }
-  } else if (bg.pattern === 'waves') {
-    for (let x = 0; x < width; x++) {
-      const y = height / 2 + Math.sin(x / 25) * 80
-      for (let dy = 0; dy < 8; dy++) {
-        image.setPixelColor(Jimp.rgbaToInt(0, 200, 255, 180), x, y + dy)
-      }
-    }
-  } else if (bg.pattern === 'gradient') {
-    image.scan(0, 0, width, height, function (x, y, idx) {
-      const ratio = y / height
-      this.bitmap.data[idx + 0] = Math.floor(255 * ratio)
-      this.bitmap.data[idx + 1] = Math.floor(120 * (1 - ratio))
-      this.bitmap.data[idx + 2] = Math.floor(180 * ratio)
-    })
-  } else if (bg.pattern === 'flame') {
-    for (let i = 0; i < 200; i++) {
-      const x = Math.random() * width
-      const y = height - Math.random() * 200
-      image.setPixelColor(Jimp.rgbaToInt(255, Math.random() * 150, 0, 200), x, y)
-    }
-  } else if (bg.pattern === 'crystal') {
-    for (let i = 0; i < 100; i++) {
-      const x = Math.random() * width
-      const y = Math.random() * height
-      for (let s = 0; s < 20; s++) {
-        image.setPixelColor(Jimp.rgbaToInt(200, 240, 255, 150), x + s, y + s)
-        image.setPixelColor(Jimp.rgbaToInt(200, 240, 255, 150), x - s, y + s)
-      }
-    }
-  } else if (bg.pattern === 'luxury') {
-    for (let i = 0; i < 150; i++) {
-      const x = Math.random() * width
-      const y = Math.random() * height
-      image.setPixelColor(Jimp.rgbaToInt(255, 215, 0, 180), x, y)
-    }
-  } else {
-    // Dots pattern for others
-    for (let i = 0; i < 200; i++) {
-      const x = Math.random() * width
-      const y = Math.random() * height
-      image.setPixelColor(Jimp.rgbaToInt(255, 255, 255, 80), x, y)
-    }
+  // Try to load actual PNG from assets/
+  const bgPath = path.join(ASSETS_DIR, `${theme}.png`)
+  const bgFramePath = path.join(ASSETS_DIR, `${theme}_frame.png`)
+
+  let bgBuffer = null
+  if (fs.existsSync(bgFramePath)) {
+    bgBuffer = await sharp(bgFramePath).resize(width, height).png().toBuffer()
+  } else if (fs.existsSync(bgPath)) {
+    bgBuffer = await sharp(bgPath).resize(width, height).png().toBuffer()
+  }
+
+  if (bgBuffer) return bgBuffer
+
+  // Fallback to generated pattern if PNG missing
+  const image = await Jimp.create(width, height, bgData.glow || '#1a1a2e')
+
+  // Simple fallback pattern
+  for (let i = 0; i < 200; i++) {
+    const x = Math.random() * width
+    const y = Math.random() * height
+    image.setPixelColor(Jimp.rgbaToInt(255, 255, 255, 80), x, y)
   }
 
   return await image.getBufferAsync(Jimp.MIME_PNG)
@@ -155,13 +111,13 @@ async function createRoundPfp(imageUrl) {
     const response = await fetch(imageUrl)
     const buffer = await response.buffer()
     return await sharp(buffer)
-     .resize(280, 280)
-     .composite([{
+    .resize(280, 280)
+    .composite([{
         input: Buffer.from(`<svg><circle cx="140" cy="140" r="140"/></svg>`),
         blend: 'dest-in'
       }])
-     .png()
-     .toBuffer()
+    .png()
+    .toBuffer()
   } catch {
     return await sharp({
       create: { width: 280, height: 280, channels: 4, background: { r: 50, g: 50, b: 50, alpha: 1 } }
@@ -191,7 +147,6 @@ export default {
         return await sock.sendMessage(from, {
           text: `╔═〘 ❌ᴇʀʀᴏʀ 〙═╗
 ┃➠ ᴇᴄᴏɴᴏᴍʏ ᴅɪsᴀʙʟᴇᴅ
-┃
 ┃➠ ᴀsᴋ ᴀᴅᴍɪɴ ᴛᴏ ᴇɴᴀʙʟᴇ:
 ┃➠ ${prefix}ecoon
 ╚═══════════════════╝`
@@ -201,7 +156,10 @@ export default {
 
     const groupId = isGroup? from : 'global'
 
-    // FETCH ALL USER DATA - EXPANDED
+    // LOAD BACKGROUNDS FROM assets.js
+    const BACKGROUNDS = await loadBackgrounds()
+
+    // FETCH ALL USER DATA
     const [
       balance, bank, xp, streak, crimeCount, jailTime,
       activeBg, pushName, currency, married, gangId,
@@ -211,7 +169,7 @@ export default {
       db.get(`eco_${groupId}_bank_${target}`),
       db.get(`eco_${groupId}_xp_${target}`),
       db.get(`eco_${groupId}_streak_${target}`),
-      db.get(`eco_${groupId}_crime_count_${target}`),
+      db.get(`eco_${groupId}_crimecount_${target}`),
       db.get(`eco_${groupId}_jail_${target}`),
       db.get(`eco_${groupId}_bg_${target}`),
       db.get(`pushname_${target}`),
@@ -253,7 +211,7 @@ export default {
     }
 
     // GENERATE CARD
-    const bgBuffer = await generateBackground(bgTheme)
+    const bgBuffer = await generateBackground(bgTheme, bgData)
     const pfpBuffer = await createRoundPfp(pfpUrl)
 
     const svgText = `
@@ -321,12 +279,12 @@ export default {
     `
 
     const finalImage = await sharp(bgBuffer)
-     .composite([
+    .composite([
         { input: pfpBuffer, top: 175, left: 60 },
         { input: Buffer.from(svgText), top: 0, left: 0 }
       ])
-     .jpeg({ quality: 95 })
-     .toBuffer()
+    .jpeg({ quality: 95 })
+    .toBuffer()
 
     await sock.sendMessage(from, {
       image: finalImage,
