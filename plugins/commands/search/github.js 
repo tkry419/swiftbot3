@@ -1,0 +1,385 @@
+/**
+ * SwiftBot - plugins/commands/search/github.js
+ * GitHub Search - Repo/User info with 7 free API fallbacks
+ * Category: search
+ * Usage: github <repo/user>
+ * Works in DM + Groups
+ */
+
+export default {
+  name: 'github',
+  alias: ['gh', 'git', 'repo'],
+  desc: 'Search GitHub repos and users - 7 sources, never fails',
+  usage: 'github <user> or <user/repo>',
+  category: 'search',
+  permission: 'all',
+
+  execute: async (sock, m, args, { prefix }) => {
+    const from = m.key.remoteJid
+    const query = args.join(' ')
+
+    if (!query) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ᴇʀᴏʀ 〙═╗
+┃➠ ᴜsᴀɢᴇ: ${prefix}github <user/repo>
+┃➠ ᴇx: ${prefix}github WhiskeySockets/Baileys
+┃➠ ᴇx: ${prefix}github torvalds
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    // SEND INITIAL MESSAGE - WE'LL EDIT THIS ✅
+    const sentMsg = await sock.sendMessage(from, {
+      text: `╔═〘 🐙sᴇᴀʀᴄʜɪɴɢ 〙═╗
+┃➠ ǫᴜᴇʀʏ: ${query}
+┃➠ sᴛᴀᴛᴜs: ғᴇᴛᴄʜɪɴɢ ɢɪᴛʜᴜʙ... ⏳
+╚═══════════════════╝`
+    }, { quoted: m })
+
+    let result = null
+    let source = ''
+    const isRepo = query.includes('/')
+
+    // FALLBACK #1: GitHub REST API - 60/hr no key
+    try {
+      const endpoint = isRepo 
+       ? `https://api.github.com/repos/${query}`
+        : `https://api.github.com/users/${query}`
+      
+      const res = await fetch(endpoint, {
+        headers: { 'User-Agent': 'SwiftBot/1.0' }
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        if (!data.message) {
+          if (isRepo) {
+            result = {
+              type: 'repo',
+              name: data.full_name,
+              description: data.description || 'No description',
+              stars: data.stargazers_count,
+              forks: data.forks_count,
+              watchers: data.watchers_count,
+              language: data.language || 'N/A',
+              license: data.license?.name || 'N/A',
+              updated: data.updated_at?.split('T')[0],
+              url: data.html_url,
+              avatar: data.owner?.avatar_url,
+              owner: data.owner?.login
+            }
+          } else {
+            result = {
+              type: 'user',
+              name: data.login,
+              fullname: data.name || 'N/A',
+              bio: data.bio || 'No bio',
+              repos: data.public_repos,
+              followers: data.followers,
+              following: data.following,
+              location: data.location || 'N/A',
+              company: data.company || 'N/A',
+              created: data.created_at?.split('T')[0],
+              url: data.html_url,
+              avatar: data.avatar_url
+            }
+          }
+          source = 'GitHub API'
+        }
+      }
+    } catch (e) { console.log('GitHub API failed') }
+
+    // FALLBACK #2: GitHub GraphQL API Public - Free, No Key
+    if (!result) {
+      try {
+        const graphqlQuery = isRepo
+         ? `query { repository(owner:"${query.split('/')[0]}", name:"${query.split('/')[1]}") { nameWithOwner description stargazerCount forkCount primaryLanguage { name } licenseInfo { name } updatedAt url owner { avatarUrl } } }`
+          : `query { user(login:"${query}") { login name bio repositories { totalCount } followers { totalCount } following { totalCount } location company createdAt url avatarUrl } }`
+        
+        const res = await fetch('https://api.github.com/graphql', {
+          method: 'POST',
+          headers: { 
+            'User-Agent': 'SwiftBot/1.0',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ query: graphqlQuery })
+        })
+        
+        if (res.ok) {
+          const data = await res.json()
+          if (isRepo && data.data?.repository) {
+            const repo = data.data.repository
+            result = {
+              type: 'repo',
+              name: repo.nameWithOwner,
+              description: repo.description || 'No description',
+              stars: repo.stargazerCount,
+              forks: repo.forkCount,
+              watchers: 'N/A',
+              language: repo.primaryLanguage?.name || 'N/A',
+              license: repo.licenseInfo?.name || 'N/A',
+              updated: repo.updatedAt?.split('T')[0],
+              url: repo.url,
+              avatar: repo.owner?.avatarUrl,
+              owner: repo.nameWithOwner.split('/')[0]
+            }
+          } else if (!isRepo && data.data?.user) {
+            const user = data.data.user
+            result = {
+              type: 'user',
+              name: user.login,
+              fullname: user.name || 'N/A',
+              bio: user.bio || 'No bio',
+              repos: user.repositories.totalCount,
+              followers: user.followers.totalCount,
+              following: user.following.totalCount,
+              location: user.location || 'N/A',
+              company: user.company || 'N/A',
+              created: user.createdAt?.split('T')[0],
+              url: user.url,
+              avatar: user.avatarUrl
+            }
+          }
+          if (result) source = 'GitHub GraphQL'
+        }
+      } catch (e) { console.log('GraphQL failed') }
+    }
+
+    // FALLBACK #3: GitHub Search API - Free, No Key
+    if (!result) {
+      try {
+        const searchType = isRepo? 'repositories' : 'users'
+        const res = await fetch(`https://api.github.com/search/${searchType}?q=${encodeURIComponent(query)}&per_page=1`, {
+          headers: { 'User-Agent': 'SwiftBot/1.0' }
+        })
+        
+        if (res.ok) {
+          const data = await res.json()
+          if (data.items?.length > 0) {
+            const item = data.items[0]
+            if (isRepo) {
+              result = {
+                type: 'repo',
+                name: item.full_name,
+                description: item.description || 'No description',
+                stars: item.stargazers_count,
+                forks: item.forks_count,
+                watchers: item.watchers_count,
+                language: item.language || 'N/A',
+                license: item.license?.name || 'N/A',
+                updated: item.updated_at?.split('T')[0],
+                url: item.html_url,
+                avatar: item.owner?.avatar_url,
+                owner: item.owner?.login
+              }
+            } else {
+              result = {
+                type: 'user',
+                name: item.login,
+                fullname: 'N/A',
+                bio: 'N/A',
+                repos: item.public_repos || 'N/A',
+                followers: item.followers || 'N/A',
+                following: item.following || 'N/A',
+                location: 'N/A',
+                company: 'N/A',
+                created: 'N/A',
+                url: item.html_url,
+                avatar: item.avatar_url
+              }
+            }
+            source = 'GitHub Search'
+          }
+        }
+      } catch (e) { console.log('GitHub Search failed') }
+    }
+
+    // FALLBACK #4: GitHub Stats API - Free
+    if (!result) {
+      try {
+        const endpoint = isRepo
+         ? `https://github-stats.vercel.app/api?username=${query.split('/')[0]}&repo=${query.split('/')[1]}`
+          : `https://github-stats.vercel.app/api?username=${query}`
+        
+        const res = await fetch(endpoint)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.name || data.login) {
+            if (isRepo) {
+              result = {
+                type: 'repo',
+                name: data.name || query,
+                description: data.description || 'No description',
+                stars: data.stars || 0,
+                forks: data.forks || 0,
+                watchers: data.watchers || 0,
+                language: data.language || 'N/A',
+                license: 'N/A',
+                updated: 'N/A',
+                url: `https://github.com/${query}`,
+                avatar: data.avatar || null,
+                owner: query.split('/')[0]
+              }
+            } else {
+              result = {
+                type: 'user',
+                name: data.login || query,
+                fullname: data.name || 'N/A',
+                bio: data.bio || 'No bio',
+                repos: data.public_repos || 0,
+                followers: data.followers || 0,
+                following: data.following || 0,
+                location: data.location || 'N/A',
+                company: data.company || 'N/A',
+                created: data.created_at?.split('T')[0] || 'N/A',
+                url: `https://github.com/${query}`,
+                avatar: data.avatar_url
+              }
+            }
+            source = 'GitHub Stats'
+          }
+        }
+      } catch (e) { console.log('GitHub Stats failed') }
+    }
+
+    // FALLBACK #5: Shields.io API - Free Badges
+    if (!result && isRepo) {
+      try {
+        const res = await fetch(`https://img.shields.io/github/stars/${query}?style=social`)
+        if (res.ok) {
+          result = {
+            type: 'repo',
+            name: query,
+            description: 'Repository data limited - shields.io fallback',
+            stars: 'Check shields.io',
+            forks: 'N/A',
+            watchers: 'N/A',
+            language: 'N/A',
+            license: 'N/A',
+            updated: 'N/A',
+            url: `https://github.com/${query}`,
+            avatar: `https://github.com/${query.split('/')[0]}.png`,
+            owner: query.split('/')[0]
+          }
+          source = 'Shields.io'
+        }
+      } catch (e) { console.log('Shields failed') }
+    }
+
+    // FALLBACK #6: GitHub Archive API - Free
+    if (!result) {
+      try {
+        const res = await fetch(`https://gharchive.org/api/${query}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.name) {
+            result = {
+              type: isRepo? 'repo' : 'user',
+              name: data.name || query,
+              description: data.description || 'Archived data',
+              stars: data.stars || 0,
+              forks: data.forks || 0,
+              watchers: data.watchers || 0,
+              language: data.language || 'N/A',
+              license: 'N/A',
+              updated: 'N/A',
+              url: `https://github.com/${query}`,
+              avatar: data.avatar_url || null,
+              owner: isRepo? query.split('/')[0] : query
+            }
+            source = 'GHArchive'
+          }
+        }
+      } catch (e) { console.log('GHArchive failed') }
+    }
+
+    // FALLBACK #7: DuckDuckGo Instant - Last Resort
+    if (!result) {
+      try {
+        const res = await fetch(`https://api.duckduckgo.com/?q=github+${encodeURIComponent(query)}&format=json&no_html=1`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.AbstractText) {
+            result = {
+              type: isRepo? 'repo' : 'user',
+              name: query,
+              description: data.AbstractText,
+              stars: 'N/A',
+              forks: 'N/A',
+              watchers: 'N/A',
+              language: 'N/A',
+              license: 'N/A',
+              updated: 'N/A',
+              url: data.AbstractURL || `https://github.com/${query}`,
+              avatar: data.Image || null,
+              owner: isRepo? query.split('/')[0] : query
+            }
+            source = 'DuckDuckGo'
+          }
+        }
+      } catch (e) { console.log('DuckDuckGo failed') }
+    }
+
+    // ALL 7 FAILED - EDIT TO ERROR
+    if (!result) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ɴᴏᴛ ғᴏᴜɴᴅ 〙═╗
+┃➠ ǫᴜᴇʀʏ: ${query}
+┃➠ ᴛʀɪᴇᴅ 7 sᴏᴜʀᴄᴇs, ɴᴏ ᴅᴀᴛᴀ
+┃➠ ᴛɪᴘ: ᴄʜᴇᴄᴋ sᴘᴇʟʟɪɴɢ
+┃➠ ғᴏʀᴍᴀᴛ: user ᴏʀ user/repo
+╚═══════════════════╝`,
+        edit: sentMsg.key // EDIT ORIGINAL ✅
+      })
+    }
+
+    // FORMAT WITH TICKS ✅ + AVATAR
+    let resultText = `╔═〘 🐙ɢɪᴛʜᴜʙ 〙═╗\n`
+    
+    if (result.type === 'repo') {
+      resultText += `┃➠ ʀᴇᴘᴏ: ${result.name} ✅\n`
+      resultText += `┃➠ ᴏᴡɴᴇʀ: ${result.owner}\n`
+      resultText += `┃➠ sᴛᴀʀs: ⭐ ${result.stars} | ғᴏʀᴋs: 🍴 ${result.forks}\n`
+      resultText += `┃➠ ʟᴀɴɢ: ${result.language} | ʟɪᴄᴇɴsᴇ: ${result.license}\n`
+      resultText += `┃➠ sᴏᴜʀᴄᴇ: ${source} ✅\n┃\n`
+      resultText += `┃ ${result.description}\n┃\n`
+      resultText += `┃➠ ᴜᴘᴅᴀᴛᴇᴅ: ${result.updated}\n`
+      resultText += `┃ 🔗 ${result.url}\n`
+    } else {
+      resultText += `┃➠ ᴜsᴇʀ: ${result.name} ✅\n`
+      if (result.fullname!== 'N/A') resultText += `┃➠ ɴᴀᴍᴇ: ${result.fullname}\n`
+      resultText += `┃➠ ʀᴇᴘᴏs: ${result.repos} | ғᴏʟʟᴏᴡᴇʀs: ${result.followers}\n`
+      if (result.location!== 'N/A') resultText += `┃➠ ʟᴏᴄᴀᴛɪᴏɴ: ${result.location}\n`
+      if (result.company!== 'N/A') resultText += `┃➠ ᴄᴏᴍᴘᴀɴʏ: ${result.company}\n`
+      resultText += `┃➠ sᴏᴜʀᴄᴇ: ${source} ✅\n┃\n`
+      resultText += `┃ ${result.bio}\n┃\n`
+      resultText += `┃➠ ᴊᴏɪɴᴇᴅ: ${result.created}\n`
+      resultText += `┃ 🔗 ${result.url}\n`
+    }
+    
+    resultText += `╚═══════════════════╝`
+
+    // IF AVATAR EXISTS - SEND WITH IMAGE
+    if (result.avatar && result.avatar.startsWith('http')) {
+      try {
+        return await sock.sendMessage(from, {
+          image: { url: result.avatar },
+          caption: resultText,
+          edit: sentMsg.key // EDIT TO IMAGE + CAPTION ✅
+        })
+      } catch (e) {
+        // If image fails, just send text
+        return await sock.sendMessage(from, {
+          text: resultText,
+          edit: sentMsg.key
+        })
+      }
+    }
+
+    // NO AVATAR - EDIT TO TEXT ONLY
+    return await sock.sendMessage(from, {
+      text: resultText,
+      edit: sentMsg.key
+    })
+  }
+}
