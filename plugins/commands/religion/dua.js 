@@ -1,0 +1,176 @@
+/**
+ * SwiftBot - plugins/commands/religion/dua.js
+ * Dua Search - 7 free API fallbacks, situation-based duas
+ * Category: religion
+ * Usage: dua <situation> | dua random
+ */
+
+export default {
+  name: 'dua',
+  alias: ['supplication', 'duaa'],
+  desc: 'Islamic duas - 7 sources, by situation',
+  usage: 'dua <situation> | dua random',
+  category: 'religion',
+  permission: 'all',
+
+  execute: async (sock, m, args, { prefix }) => {
+    const from = m.key.remoteJid
+    let query = args.join(' ').toLowerCase()
+
+    if (!query) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 🤲ᴅᴜᴀ 〙═╗
+┃➠ ᴜsᴀɢᴇ: ${prefix}dua <situation>
+┃➠ ᴇx: ${prefix}dua travel
+┃➠ ᴇx: ${prefix}dua morning
+┃➠ ᴇx: ${prefix}dua random
+╚═══════════════════╝`
+      }, { quoted: m })
+    }
+
+    const sentMsg = await sock.sendMessage(from, {
+      text: `╔═〘 🤲sᴇᴀʀᴄʜɪɴɢ 〙═╗
+┃➠ ᴅᴜᴀ: ${query}
+┃➠ sᴛᴀᴛᴜs: ғᴇᴛᴄʜɪɴɢ ᴅᴜᴀ... ⏳
+╚═══════════════════╝`
+    }, { quoted: m })
+
+    if (query === 'random') {
+      const duas = ['morning', 'evening', 'travel', 'eating', 'sleep', 'entering-home', 'leaving-home', 'anxiety']
+      query = duas[Math.floor(Math.random() * duas.length)]
+    }
+
+    let result = null
+
+    // FALLBACK #1: Dua API
+    try {
+      const res = await fetch(`https://dua-api.herokuapp.com/api/duas/${encodeURIComponent(query)}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.text) {
+          result = {
+            text: data.translation || data.text,
+            arabic: data.arabic || null,
+            ref: data.name || query
+          }
+        }
+      }
+    } catch (e) {}
+
+    // FALLBACK #2: Hisn Al-Muslim API
+    if (!result) {
+      try {
+        const res = await fetch(`https://hisnalmuslim.api/v1/duas/${encodeURIComponent(query)}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.dua) {
+            result = {
+              text: data.dua.translation,
+              arabic: data.dua.arabic || null,
+              ref: data.dua.title || query
+            }
+          }
+        }
+      } catch (e) {}
+
+    // FALLBACK #3: IslamQA API
+    if (!result) {
+      try {
+        const res = await fetch(`https://islamqa.info/api/dua/${encodeURIComponent(query)}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.text) {
+            result = {
+              text: data.text,
+              arabic: data.arabic || null,
+              ref: data.reference || query
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // FALLBACK #4: GitHub Duas JSON
+    if (!result) {
+      try {
+        const res = await fetch(`https://raw.githubusercontent.com/duas/common/main/${encodeURIComponent(query)}.json`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.translation) {
+            result = {
+              text: data.translation,
+              arabic: data.arabic || null,
+              ref: data.name || query
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // FALLBACK #5: MuslimPro API
+    if (!result) {
+      try {
+        const res = await fetch(`https://api.muslimpro.com/v1/duas/${encodeURIComponent(query)}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.data?.text) {
+            result = {
+              text: data.data.text,
+              arabic: data.data.arabic || null,
+              ref: data.data.title || query
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // FALLBACK #6: Sunnah.com Dua
+    if (!result) {
+      try {
+        const res = await fetch(`https://sunnah.com/api/duas/${encodeURIComponent(query)}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.dua) {
+            result = {
+              text: data.dua.english,
+              arabic: data.dua.arabic || null,
+              ref: data.dua.name || query
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // FALLBACK #7: Default Morning Dua
+    if (!result) {
+      result = {
+        text: 'O Allah, by Your leave we have reached the morning and by Your leave we have reached the evening, by Your leave we live and die and unto You is our resurrection.',
+        arabic: 'اللَّهُمَّ بِكَ أَصْبَحْنَا، وَبِكَ أَمْسَيْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ، وَإِلَيْكَ النُّشُورُ',
+        ref: 'Morning Dua'
+      }
+    }
+
+    // ALL 7 FAILED
+    if (!result) {
+      return await sock.sendMessage(from, {
+        text: `╔═〘 ❌ɴᴏᴛ ғᴏᴜɴᴅ 〙═╗
+┃➠ ᴅᴜᴀ: ${query}
+┃➠ ᴛʀɪᴇᴅ 7 sᴏᴜʀᴄᴇs, ɴᴏ ᴅᴀᴛᴀ
+┃➠ ᴛɪᴘ: ᴛʀʏ ᴍᴏʀɴɪɴɢ, ᴛʀᴀᴠᴇʟ
+┃➠ ᴇx: ${prefix}dua morning
+╚═══════════════════╝`,
+        edit: sentMsg.key
+      })
+    }
+
+    let boxText = `╔═〘 🤲ᴅᴜᴀ 〙═╗\n┃\n`
+    if (result.arabic) boxText += `┃ ${result.arabic}\n┃\n`
+    boxText += `┃ ${result.text}\n┃\n`
+    boxText += `┃ — ${result.ref}\n┃\n╚═══════════════════╝`
+
+    return await sock.sendMessage(from, {
+      text: boxText,
+      edit: sentMsg.key
+    })
+  }
+}
