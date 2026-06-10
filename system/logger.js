@@ -1,5 +1,5 @@
 /**
- * SwiftBot - system/logger.js
+ * AstraX - system/logger.js
  * Colored, timestamped console logger
  * No external dependencies — pure Node.js
  */
